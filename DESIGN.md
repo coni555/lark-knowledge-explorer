@@ -1,8 +1,9 @@
 # Knowledge Explorer 设计文档
 
 > 飞书 CLI 创作者大赛参赛项目
-> 状态：设计中
-> 最后更新：2026-04-02
+> 状态：MVP 完成，集成测试通过
+> 最后更新：2026-04-03
+> GitHub：https://github.com/coni555/knowledge-explorer
 
 ## 产品定义
 
@@ -244,3 +245,39 @@ knowledge-explorer/
 
 - Hacker News / V2EX / 即刻 / Twitter 投放
 - 夜识AI 公众号写实战教程（社媒赛道兼得）
+
+---
+
+## 进度跟踪
+
+### 已完成（2026-04-03）
+
+- [x] 项目搭建（TS + vitest + chalk）
+- [x] 缓存层（JSON 文件持久化 + 新鲜度检查）
+- [x] lark-cli 封装（search / fetch / wiki resolve / doc create）
+- [x] Phase 1 收集（搜索 + 去重 + 类型过滤 + 增量缓存）
+- [x] Phase 2 建图（link edges / mention edges / AI 摘要 / union-find 聚类）
+- [x] Phase 3 洞察（L1 结构 / L2 语义 / L3 碰撞）
+- [x] Phase 4 输出（终端彩色报告 + 飞书文档自动创建）
+- [x] CLI 入口（单命令全流程编排）
+- [x] 集成测试通过（"留学"关键词，16篇文档，5个碰撞洞察）
+- [x] GitHub 仓库创建并推送
+- [x] 9 个单元测试全部通过
+
+### 集成测试发现的问题（已修复）
+
+- lark-cli 返回格式是 `{ok, data: {...}}` 而非直接返回 data
+- 搜索结果有重复 token，需要去重
+- SLIDES/SHEET 等类型不能用 docs +fetch，需要过滤
+- docs +create 不支持 --format json，不能走 larkJSON
+- markdown 内容含特殊字符需用 execFileSync 绕过 shell
+
+### 待做（明天继续）
+
+- [ ] link edges 实测验证（需要有互相引用的文档来测试）
+- [ ] semantic edges（AI 判断语义相似的文档对，当前未实现）
+- [ ] L2 聚类分析在飞书文档中的展示（当前只有碰撞洞察）
+- [ ] 搜索分页优化（当前限制 5 页 100 条，去重后可能只有 20 条 DOCX）
+- [ ] README 中的 GIF 录制
+- [ ] 报名参赛
+- [ ] 轮换通义千问 API key（已暴露在对话历史中）
