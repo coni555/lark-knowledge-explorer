@@ -58,6 +58,18 @@ export class CacheStore {
     await this.writeJSON('meta.json', meta);
   }
 
+  // Summaries cache (keyed by id, avoids re-summarizing unchanged docs)
+  async readSummaries(): Promise<Map<string, { summary: string; keywords: string[]; updated_at: string }>> {
+    const arr = await this.readJSON<Array<{ id: string; summary: string; keywords: string[]; updated_at: string }>>('summaries.json');
+    if (!arr) return new Map();
+    return new Map(arr.map(s => [s.id, s]));
+  }
+
+  async writeSummaries(map: Map<string, { summary: string; keywords: string[]; updated_at: string }>) {
+    const arr = [...map.entries()].map(([id, v]) => ({ id, ...v }));
+    await this.writeJSON('summaries.json', arr);
+  }
+
   // Freshness: node is fresh if fetched_at >= updated_at
   isNodeFresh(node: KnowledgeNode): boolean {
     if (!node.fetched_at || !node.updated_at) return false;

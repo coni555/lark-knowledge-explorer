@@ -1,9 +1,160 @@
 // src/graph.ts
 import type { KnowledgeNode, Edge, Cluster } from './types.js';
-import { summarizeDoc, judgeSemantic, isAIConfigured } from './ai.js';
+import { summarizeDoc, batchCluster, isAIConfigured } from './ai.js';
+import type { CacheStore } from './cache.js';
 import chalk from 'chalk';
 
-// --- Link Edges: parse feishu URLs from content ---
+// --- AI Summaries (with cache) ---
+
+export async function generateSummaries(nodes: KnowledgeNode[], cache?: CacheStore): Promise<void> {
+  // Load summary cache
+  const summaryCache = cache ? await cache.readSummaries() : new Map();
+
+  // Restore cached summaries first
+  for (const node of nodes) {
+    if (!node.summary && summaryCache.has(node.id)) {
+      const cached = summaryCache.get(node.id)!;
+      if (cached.updated_at === node.updated_at) {
+        node.summary = cached.summary;
+        node.keywords = cached.keywords;
+      }
+    }
+  }
+
+  const needSummary = nodes.filter(n => !n.summary && n.content);
+  if (needSummary.length === 0) return;
+
+  if (!isAIConfigured()) {
+    console.log(chalk.yellow('   ⏭ 跳过摘要生成（未配置 AI API key）'));
+    return;
+  }
+
+  console.log(chalk.blue(`🤖 正在生成 ${needSummary.length} 篇文档的 AI 摘要...`));
+  let done = 0;
+
+  for (const node of needSummary) {
+    try {
+      const result = await summarizeDoc(node.title, node.content!);
+      node.summary = result.summary;
+      node.keywords = result.keywords;
+      // Update summary cache
+      summaryCache.set(node.id, {
+        summary: result.summary,
+        keywords: result.keywords,
+        updated_at: node.updated_at,
+      });
+      done++;
+      process.stdout.write(chalk.gray(`\r   已完成 ${done}/${needSummary.length}`));
+    } catch (err) {
+      console.warn(chalk.yellow(`\n   ⚠ 摘要生成失败: ${node.title}`));
+    }
+  }
+
+  // Persist summary cache
+  if (cache) await cache.writeSummaries(summaryCache);
+  console.log(chalk.green(`\n   ✓ 摘要生成完成`));
+}
+
+// --- Semantic Clustering (AI batch, primary) ---
+
+async function buildSemanticClusters(nodes: KnowledgeNode[]): Promise<{ clusters: Cluster[]; edges: Edge[] }> {
+  const docsWithSummary = nodes.filter(n => n.summary && n.keywords?.length > 0);
+
+  if (docsWithSummary.length < 2 || !isAIConfigured()) {
+    // Fallback: single cluster with all nodes
+    return {
+      clusters: [{ id: 'cluster_0', label: '全部文档', node_ids: nodes.map(n => n.id) }],
+      edges: [],
+    };
+  }
+
+  console.log(chalk.blue(`🧠 正在进行 AI 语义聚类（${docsWithSummary.length} 篇文档）...`));
+
+  const aiClusters = await batchCluster(
+    docsWithSummary.map(n => ({ id: n.id, title: n.title, summary: n.summary, keywords: n.keywords }))
+  );
+
+  // Convert to Cluster objects
+  const clusters: Cluster[] = [];
+  const edges: Edge[] = [];
+  const clusteredIds = new Set<string>();
+
+  for (let i = 0; i < aiClusters.length; i++) {
+    const ac = aiClusters[i];
+    // Filter to only valid node IDs
+    const validIds = ac.doc_ids.filter(id => docsWithSummary.some(n => n.id === id));
+    if (validIds.length === 0) continue;
+
+    validIds.forEach(id => clusteredIds.add(id));
+
+    clusters.push({
+      id: `cluster_${i}`,
+      label: ac.cluster_label,
+      node_ids: validIds,
+    });
+
+    // Create intra-cluster semantic edges
+    if (validIds.length <= 8) {
+      // Small cluster: connect all pairs
+      for (let a = 0; a < validIds.length; a++) {
+        for (let b = a + 1; b < validIds.length; b++) {
+          edges.push({
+            source: validIds[a],
+            target: validIds[b],
+            type: 'semantic',
+            weight: 0.8,
+            reason: ac.cluster_label,
+          });
+        }
+      }
+    } else {
+      // Large cluster: connect each doc to 3 nearest by keyword overlap
+      const clusterNodes = validIds.map(id => docsWithSummary.find(n => n.id === id)!);
+      for (const node of clusterNodes) {
+        const others = clusterNodes
+          .filter(o => o.id !== node.id)
+          .map(o => ({
+            id: o.id,
+            overlap: node.keywords.filter(k => o.keywords.includes(k)).length,
+          }))
+          .sort((a, b) => b.overlap - a.overlap)
+          .slice(0, 3);
+
+        for (const o of others) {
+          // Avoid duplicate edges
+          const exists = edges.some(e =>
+            (e.source === node.id && e.target === o.id) ||
+            (e.source === o.id && e.target === node.id)
+          );
+          if (!exists) {
+            edges.push({
+              source: node.id,
+              target: o.id,
+              type: 'semantic',
+              weight: 0.8,
+              reason: ac.cluster_label,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // Handle unclustered nodes (put in "其他" cluster)
+  const unclustered = nodes.filter(n => !clusteredIds.has(n.id));
+  if (unclustered.length > 0) {
+    clusters.push({
+      id: `cluster_${clusters.length}`,
+      label: '其他',
+      node_ids: unclustered.map(n => n.id),
+    });
+  }
+
+  console.log(chalk.green(`   ✓ AI 聚类完成: ${clusters.length} 个主题, ${edges.length} 条语义边`));
+  return { clusters, edges };
+}
+
+// --- Bonus: Link & Mention Edges (supplementary) ---
 
 const FEISHU_URL_RE = /https?:\/\/[a-z0-9.-]*(?:feishu\.cn|larksuite\.com)\/(?:docx|doc|wiki|sheets)\/([A-Za-z0-9]+)/g;
 
@@ -27,21 +178,19 @@ export function findLinkEdges(nodes: KnowledgeNode[]): Edge[] {
   return edges;
 }
 
-// --- Mention Edges: title appears in another doc's content ---
-
 export function findMentionEdges(nodes: KnowledgeNode[]): Edge[] {
   const edges: Edge[] = [];
-  const linkPairs = new Set<string>(); // avoid duplicating link edges
+  const seen = new Set<string>();
 
   for (const source of nodes) {
     if (!source.content) continue;
     for (const target of nodes) {
       if (source.id === target.id) continue;
-      if (target.title.length < 2) continue; // skip very short titles
+      if (target.title.length < 2) continue;
       if (source.content.includes(target.title)) {
         const key = `${source.id}->${target.id}`;
-        if (!linkPairs.has(key)) {
-          linkPairs.add(key);
+        if (!seen.has(key)) {
+          seen.add(key);
           edges.push({ source: source.id, target: target.id, type: 'mention', weight: 0.6 });
         }
       }
@@ -51,159 +200,25 @@ export function findMentionEdges(nodes: KnowledgeNode[]): Edge[] {
   return edges;
 }
 
-// --- AI Summaries ---
-
-export async function generateSummaries(nodes: KnowledgeNode[]): Promise<void> {
-  const needSummary = nodes.filter(n => !n.summary && n.content);
-  if (needSummary.length === 0) return;
-
-  console.log(chalk.blue(`🤖 正在生成 ${needSummary.length} 篇文档的 AI 摘要...`));
-  let done = 0;
-
-  for (const node of needSummary) {
-    try {
-      const result = await summarizeDoc(node.title, node.content!);
-      node.summary = result.summary;
-      node.keywords = result.keywords;
-      done++;
-      process.stdout.write(chalk.gray(`\r   已完成 ${done}/${needSummary.length}`));
-    } catch (err) {
-      console.warn(chalk.yellow(`\n   ⚠ 摘要生成失败: ${node.title}`));
-    }
-  }
-  console.log(chalk.green(`\n   ✓ 摘要生成完成`));
-}
-
-// --- Semantic Edges: AI-judged conceptual similarity ---
-
-export async function findSemanticEdges(nodes: KnowledgeNode[], existingEdges: Edge[]): Promise<Edge[]> {
-  if (!isAIConfigured()) {
-    console.log(chalk.yellow('   ⏭ 跳过语义分析（未配置 AI API key）'));
-    return [];
-  }
-  // Only consider nodes with summaries and keywords
-  const candidates = nodes.filter(n => n.summary && n.keywords?.length > 0);
-  if (candidates.length < 2) return [];
-
-  // Pre-filter: only send pairs with ≥1 shared keyword to AI (saves API calls)
-  const existingPairs = new Set(existingEdges.map(e => `${e.source}->${e.target}`));
-  const pairs: Array<[KnowledgeNode, KnowledgeNode, number]> = [];
-
-  for (let i = 0; i < candidates.length; i++) {
-    for (let j = i + 1; j < candidates.length; j++) {
-      const a = candidates[i], b = candidates[j];
-      // Skip if already connected by link/mention
-      if (existingPairs.has(`${a.id}->${b.id}`) || existingPairs.has(`${b.id}->${a.id}`)) continue;
-
-      const shared = a.keywords.filter(k => b.keywords.includes(k)).length;
-      if (shared > 0) pairs.push([a, b, shared]);
-    }
-  }
-
-  // Sort by keyword overlap descending, cap at 15 pairs to control API cost
-  pairs.sort((a, b) => b[2] - a[2]);
-  const topPairs = pairs.slice(0, 15);
-
-  if (topPairs.length === 0) return [];
-
-  console.log(chalk.blue(`🧠 正在判断 ${topPairs.length} 对文档的语义相似度...`));
-  const edges: Edge[] = [];
-  let done = 0;
-
-  for (const [a, b] of topPairs) {
-    try {
-      const result = await judgeSemantic(
-        { title: a.title, summary: a.summary, keywords: a.keywords },
-        { title: b.title, summary: b.summary, keywords: b.keywords },
-      );
-      if (result.score >= 0.5) {
-        edges.push({
-          source: a.id,
-          target: b.id,
-          type: 'semantic',
-          weight: result.score,
-          reason: result.reason,
-        });
-      }
-      done++;
-      process.stdout.write(chalk.gray(`\r   已判断 ${done}/${topPairs.length}`));
-    } catch (err) {
-      console.warn(chalk.yellow(`\n   ⚠ 语义判断失败: ${a.title} × ${b.title}`));
-    }
-  }
-  console.log(chalk.green(`\n   ✓ 发现 ${edges.length} 条语义关系`));
-
-  return edges;
-}
-
-// --- Clustering: connected components via union-find ---
-
-export function clusterNodes(nodes: KnowledgeNode[], edges: Edge[]): Cluster[] {
-  const parent = new Map<string, string>();
-  const find = (x: string): string => {
-    if (!parent.has(x)) parent.set(x, x);
-    if (parent.get(x) !== x) parent.set(x, find(parent.get(x)!));
-    return parent.get(x)!;
-  };
-  const union = (a: string, b: string) => {
-    parent.set(find(a), find(b));
-  };
-
-  // Initialize all nodes
-  for (const n of nodes) parent.set(n.id, n.id);
-
-  // Union connected nodes
-  for (const e of edges) {
-    if (e.weight >= 0.3) {  // threshold for clustering
-      union(e.source, e.target);
-    }
-  }
-
-  // Group by root
-  const groups = new Map<string, string[]>();
-  for (const n of nodes) {
-    const root = find(n.id);
-    if (!groups.has(root)) groups.set(root, []);
-    groups.get(root)!.push(n.id);
-  }
-
-  // Convert to Cluster objects
-  let idx = 0;
-  const clusters: Cluster[] = [];
-  for (const [, nodeIds] of groups) {
-    clusters.push({
-      id: `cluster_${idx++}`,
-      label: '',  // filled later by AI
-      node_ids: nodeIds,
-    });
-  }
-
-  return clusters;
-}
-
 // --- Full graph build pipeline ---
 
-export async function buildGraph(nodes: KnowledgeNode[]): Promise<{ edges: Edge[]; clusters: Cluster[] }> {
+export async function buildGraph(nodes: KnowledgeNode[], cache?: CacheStore): Promise<{ edges: Edge[]; clusters: Cluster[] }> {
   console.log(chalk.blue('🔗 正在构建知识图谱...'));
 
-  // Step 1: Link edges
+  // Step 1: AI summaries (with cache)
+  await generateSummaries(nodes, cache);
+
+  // Step 2: AI semantic clustering (PRIMARY)
+  const { clusters, edges: semanticEdges } = await buildSemanticClusters(nodes);
+
+  // Step 3: Bonus link/mention edges (supplementary)
   const linkEdges = findLinkEdges(nodes);
-  console.log(chalk.gray(`   发现 ${linkEdges.length} 条链接关系`));
-
-  // Step 2: Mention edges
   const mentionEdges = findMentionEdges(nodes);
-  console.log(chalk.gray(`   发现 ${mentionEdges.length} 条提及关系`));
+  if (linkEdges.length > 0) console.log(chalk.gray(`   额外发现 ${linkEdges.length} 条链接关系`));
+  if (mentionEdges.length > 0) console.log(chalk.gray(`   额外发现 ${mentionEdges.length} 条提及关系`));
 
-  // Step 3: AI summaries
-  await generateSummaries(nodes);
-
-  // Step 4: Semantic edges (AI-judged similarity)
-  const semanticEdges = await findSemanticEdges(nodes, [...linkEdges, ...mentionEdges]);
-
-  const allEdges = [...linkEdges, ...mentionEdges, ...semanticEdges];
-
-  // Step 5: Clustering
-  const clusters = clusterNodes(nodes, allEdges);
+  // Step 4: Merge all edges
+  const allEdges = [...semanticEdges, ...linkEdges, ...mentionEdges];
   console.log(chalk.green(`   ✓ 图谱构建完成: ${allEdges.length} 条边, ${clusters.length} 个聚类`));
 
   return { edges: allEdges, clusters };

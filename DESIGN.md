@@ -1,8 +1,8 @@
 # Knowledge Explorer 设计文档
 
 > 飞书 CLI 创作者大赛参赛项目
-> 状态：MVP 完成，集成测试通过
-> 最后更新：2026-04-03
+> 状态：v0.2 语义优先架构完成，全量扫描+Owner过滤，集成测试通过
+> 最后更新：2026-04-05
 > GitHub：https://github.com/coni555/knowledge-explorer
 
 ## 产品定义
@@ -278,11 +278,34 @@ knowledge-explorer/
 - [x] 搜索分页优化 — 默认 5→10 页，新增 `--max-pages` CLI 参数
 - [x] L2 聚类展示完善 — 飞书文档新增「知识健康建议」章节（重复/过期/孤岛），终端新增健康摘要行
 - [x] API key 安全 — `.gitignore` 加 `.env`，新建 `.env.example` 模板
+- [x] 无 AI key 优雅降级 — `isAIConfigured()` 守卫，无 key 时跳过语义分析而非刷 15 条错误
+- [x] 集成测试通过 — "留学"关键词：15 条语义关系、7 个聚类、5 条碰撞洞察、飞书文档自动生成
+- [x] 轮换通义千问 API key
+
+### 集成测试验证记录（2026-04-04）
+
+- "留学"关键词：16 篇文档 → 15 条 semantic edges → 7 个聚类 → 2 个主题群 → 5 条碰撞洞察 ✅
+- "认知"关键词：7 篇文档（DOCX），手动验证发现文档间存在明确主题关联（阅读×AI认知 / 留学运营×MBTI），但工具内关键词交集预筛选太严导致部分文档对未送 AI 判断
+- link edges：当前飞书文档中几乎不存在互相引用链接，功能代码+单测通过但无法在真实数据触发
+
+### 已完成（2026-04-05）
+
+- [x] **架构重构：语义优先管线** — 核心逻辑从"发现已有链接"反转为"从零建立连接"
+  - `graph.ts`: 删除旧 pairwise `findSemanticEdges`(15对上限) + `clusterNodes`(union-find)
+  - 新增 `buildSemanticClusters()`: 调用 `batchCluster()` 一次 AI 调用完成全部聚类，簇内自动建 semantic edges
+  - link/mention edges 降为补充信号
+- [x] **全量扫描模式** — 默认遍历所有 wiki space + 全局搜索补充非空间文档
+  - `lark.ts`: 新增 `listSpaces()` / `listSpaceNodes()` / `listAllSpaceNodes()`，用 `lark-cli api GET` + `execFileSync` 绕 shell 转义
+  - `collect.ts`: 双模式 `full-scan`(默认) / `keyword-search`(--query 降级)
+- [x] **AI 批量聚类** — `ai.ts` 新增 `batchCluster()`，一次调用按语义分组，N>80 分块+合并
+- [x] **Summary 缓存** — `cache.ts` 新增 `readSummaries()/writeSummaries()`，避免重跑时重复 AI 摘要
+- [x] **Owner 过滤** — `--owner me/others/具体名字`，wiki 节点按 open_id 匹配，搜索结果按 owner_name 匹配
+- [x] **CLI 升级** — 默认全量扫描 / `--query` 降级 / `--space` 指定空间 / `--owner` 过滤 / `--list-spaces` 列出空间
+- [x] 集成测试通过 — 全量扫描 16 篇 → 6 个聚类 → 29 条边 → 碰撞洞察 ✅
+- [x] `--owner me` 测试通过 — 8 篇 → 3 个聚类 → 23 条边 ✅
 
 ### 待做
 
-- [ ] link edges 实测验证（代码+单测已通过，需真实互相引用的文档验证）
-- [ ] 集成测试（含 semantic edges 全流程验证）
-- [ ] README 中的 GIF 录制
+- [ ] README 更新（新 CLI 用法、GIF 录制）
 - [ ] 报名参赛
-- [ ] 轮换通义千问 API key（旧 key 已暴露在对话历史中）
+- [ ] 推广（Hacker News / V2EX / 即刻 / 夜识AI 公众号）

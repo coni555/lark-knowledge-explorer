@@ -5,6 +5,7 @@ export interface KnowledgeNode {
   type: 'wiki' | 'doc' | 'sheet' | 'meeting';
   title: string;
   space: string;                 // space name or id
+  owner?: string;                // owner name
   url: string;
   updated_at: string;            // ISO 8601
   summary: string;               // AI-generated, ~100 chars
@@ -67,6 +68,9 @@ export interface ExploreResult {
 export interface CacheMeta {
   version: string;
   scanned_at: string;
+  mode: 'full-scan' | 'keyword-search';
   query?: string;
+  space_id?: string;
+  space_name?: string;
   node_count: number;
 }

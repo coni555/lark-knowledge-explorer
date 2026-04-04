@@ -121,6 +121,76 @@ export async function generateCollision(
   }
 }
 
+// --- Batch clustering: group all docs by semantic theme in one call ---
+
+export async function batchCluster(
+  docs: Array<{ id: string; title: string; summary: string; keywords: string[] }>
+): Promise<Array<{ cluster_label: string; doc_ids: string[] }>> {
+  if (docs.length < 2) {
+    return [{ cluster_label: '全部文档', doc_ids: docs.map(d => d.id) }];
+  }
+
+  const system = `你是知识图谱分析师。将以下文档按语义主题分组。
+规则：
+- 每篇文档恰好属于一个组
+- 组数在 2 到 ${Math.max(2, Math.ceil(docs.length / 3))} 之间，由内容自然决定
+- 组标签用简短的中文主题词（2-6字）
+- 不要创建只有1篇文档的组，至少2篇才成组；无法归类的放入"其他"组
+
+严格以JSON数组格式返回：[{"cluster_label": "主题标签", "doc_ids": ["id1", "id2", ...]}, ...]`;
+
+  // For large doc sets, chunk to avoid context limits
+  const CHUNK_SIZE = 60;
+  if (docs.length <= 80) {
+    return await callBatchCluster(system, docs);
+  }
+
+  // Chunk with overlap
+  const allClusters: Array<{ cluster_label: string; doc_ids: string[] }> = [];
+  for (let i = 0; i < docs.length; i += CHUNK_SIZE - 10) {
+    const chunk = docs.slice(i, i + CHUNK_SIZE);
+    const result = await callBatchCluster(system, chunk);
+    allClusters.push(...result);
+  }
+
+  // Merge clusters with same label
+  const merged = new Map<string, Set<string>>();
+  for (const c of allClusters) {
+    const existing = merged.get(c.cluster_label);
+    if (existing) {
+      c.doc_ids.forEach(id => existing.add(id));
+    } else {
+      merged.set(c.cluster_label, new Set(c.doc_ids));
+    }
+  }
+
+  return [...merged.entries()].map(([label, ids]) => ({
+    cluster_label: label,
+    doc_ids: [...ids],
+  }));
+}
+
+async function callBatchCluster(
+  system: string,
+  docs: Array<{ id: string; title: string; summary: string; keywords: string[] }>
+): Promise<Array<{ cluster_label: string; doc_ids: string[] }>> {
+  const user = docs.map(d =>
+    `[${d.id}] 《${d.title}》：${d.summary}（关键词：${d.keywords.join('、')}）`
+  ).join('\n');
+
+  const raw = await chatComplete(system, user);
+
+  try {
+    const cleaned = raw.replace(/```json\n?|\n?```/g, '').trim();
+    const parsed = JSON.parse(cleaned) as Array<{ cluster_label: string; doc_ids: string[] }>;
+    if (!Array.isArray(parsed)) throw new Error('not array');
+    return parsed;
+  } catch {
+    // Fallback: put all docs in one cluster
+    return [{ cluster_label: '全部文档', doc_ids: docs.map(d => d.id) }];
+  }
+}
+
 // --- Semantic similarity between two documents ---
 
 export async function judgeSemantic(

@@ -1,7 +1,7 @@
 // tests/graph.test.ts
 import { describe, it, expect } from 'vitest';
-import { findLinkEdges, findMentionEdges, clusterNodes } from '../src/graph.js';
-import type { KnowledgeNode, Edge } from '../src/types.js';
+import { findLinkEdges, findMentionEdges } from '../src/graph.js';
+import type { KnowledgeNode } from '../src/types.js';
 
 function makeNode(id: string, title: string, content = '', keywords: string[] = []): KnowledgeNode {
   return {
@@ -39,25 +39,5 @@ describe('findMentionEdges', () => {
   });
 });
 
-describe('clusterNodes', () => {
-  it('groups connected nodes into clusters', () => {
-    const nodes = [makeNode('a', 'A'), makeNode('b', 'B'), makeNode('c', 'C'), makeNode('d', 'D')];
-    const edges: Edge[] = [
-      { source: 'a', target: 'b', type: 'link', weight: 1 },
-      { source: 'c', target: 'd', type: 'link', weight: 1 },
-    ];
-    const clusters = clusterNodes(nodes, edges);
-    expect(clusters).toHaveLength(2);
-    // a,b in one cluster; c,d in another
-    const clusterIds = clusters.map(c => c.node_ids.sort().join(','));
-    expect(clusterIds).toContain('a,b');
-    expect(clusterIds).toContain('c,d');
-  });
-
-  it('puts isolated nodes in their own cluster', () => {
-    const nodes = [makeNode('a', 'A'), makeNode('b', 'B')];
-    const edges: Edge[] = [];
-    const clusters = clusterNodes(nodes, edges);
-    expect(clusters).toHaveLength(2);
-  });
-});
+// Note: clustering is now handled by AI batch clustering in buildGraph,
+// not by the old union-find clusterNodes. See ai.ts batchCluster().

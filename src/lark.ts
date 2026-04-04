@@ -20,6 +20,23 @@ function larkJSON<T = unknown>(args: string[], opts?: LarkExecOptions): T {
   return JSON.parse(raw) as T;
 }
 
+// --- Current User ---
+
+interface AuthStatus {
+  userName: string;
+  userOpenId: string;
+}
+
+let _currentUser: AuthStatus | null = null;
+
+export function getCurrentUser(): AuthStatus {
+  if (_currentUser) return _currentUser;
+  const raw = larkExec(['auth', 'status']);
+  const parsed = JSON.parse(raw) as AuthStatus;
+  _currentUser = parsed;
+  return parsed;
+}
+
 // --- Search ---
 
 interface SearchResultItem {
@@ -28,6 +45,7 @@ interface SearchResultItem {
   url: string;
   type: string;           // DOC, WIKI, SHEET, etc.
   owner_id?: string;
+  owner_name?: string;
   create_time_iso?: string;
   edit_time_iso?: string;
 }
@@ -43,6 +61,7 @@ interface RawSearchResponse {
         token: string;
         url: string;
         doc_types: string;
+        owner_id?: string;
         owner_name?: string;
         create_time_iso?: string;
         update_time_iso?: string;
@@ -58,6 +77,8 @@ function parseSearchResults(raw: RawSearchResponse): { items: SearchResultItem[]
     title: r.title_highlighted.replace(/<\/?h[b]?>/g, ''),  // strip highlight tags
     url: r.result_meta.url,
     type: r.result_meta.doc_types ?? r.entity_type,  // DOCX, SLIDES, SHEET, etc.
+    owner_id: (r.result_meta as Record<string, unknown>).owner_id as string | undefined,
+    owner_name: (r.result_meta as Record<string, unknown>).owner_name as string | undefined,
     create_time_iso: r.result_meta.create_time_iso,
     edit_time_iso: r.result_meta.update_time_iso,
   }));
@@ -81,6 +102,119 @@ export async function searchDocs(query: string, maxPages = 10): Promise<SearchRe
   }
 
   return allItems;
+}
+
+// --- Wiki Space Scanning ---
+
+export interface WikiSpaceInfo {
+  space_id: string;
+  name: string;
+  description: string;
+}
+
+export interface WikiNodeInfo {
+  node_token: string;
+  obj_token: string;
+  obj_type: string;          // docx, doc, sheet, bitable, slides, etc.
+  title: string;
+  has_child: boolean;
+  parent_node_token: string;
+  space_id: string;
+  owner: string;             // open_id of owner
+  obj_edit_time: string;     // unix timestamp string
+}
+
+interface RawSpacesResponse {
+  code: number;
+  data: {
+    has_more: boolean;
+    items: Array<{
+      space_id: string;
+      name: string;
+      description: string;
+    }>;
+    page_token?: string;
+  };
+}
+
+interface RawSpaceNodesResponse {
+  code: number;
+  data: {
+    has_more: boolean;
+    items: Array<{
+      node_token: string;
+      obj_token: string;
+      obj_type: string;
+      title: string;
+      has_child: boolean;
+      parent_node_token: string;
+      space_id: string;
+      obj_edit_time: string;
+    }>;
+    page_token?: string;
+  };
+}
+
+function larkAPI<T = unknown>(method: string, path: string, params?: Record<string, string>): T {
+  const args = ['api', method, path, '--format', 'json', '--page-all'];
+  if (params) args.push('--params', JSON.stringify(params));
+  // Use execFileSync to avoid shell escaping issues with JSON params
+  const raw = execFileSync('lark-cli', args, {
+    encoding: 'utf-8',
+    timeout: 60000,
+    maxBuffer: 10 * 1024 * 1024,
+  });
+  // --page-all output may have pagination log lines, extract JSON
+  const jsonStart = raw.indexOf('{');
+  if (jsonStart < 0) throw new Error(`No JSON in lark-cli api response: ${raw.slice(0, 200)}`);
+  return JSON.parse(raw.slice(jsonStart)) as T;
+}
+
+export async function listSpaces(): Promise<WikiSpaceInfo[]> {
+  const raw = larkAPI<RawSpacesResponse>('GET', '/open-apis/wiki/v2/spaces');
+  if (raw.code !== 0) throw new Error(`listSpaces failed: code ${raw.code}`);
+  return (raw.data.items ?? []).map(s => ({
+    space_id: s.space_id,
+    name: s.name,
+    description: s.description,
+  }));
+}
+
+export async function listSpaceNodes(spaceId: string, parentToken?: string): Promise<WikiNodeInfo[]> {
+  const params: Record<string, string> = {};
+  if (parentToken !== undefined) params.parent_node_token = parentToken;
+
+  const raw = larkAPI<RawSpaceNodesResponse>('GET', `/open-apis/wiki/v2/spaces/${spaceId}/nodes`, Object.keys(params).length > 0 ? params : undefined);
+  if (raw.code !== 0) throw new Error(`listSpaceNodes failed: code ${raw.code}`);
+  return (raw.data.items ?? []).map(n => ({
+    node_token: n.node_token,
+    obj_token: n.obj_token,
+    obj_type: n.obj_type,
+    title: n.title,
+    has_child: n.has_child,
+    parent_node_token: n.parent_node_token,
+    space_id: n.space_id,
+    owner: (n as Record<string, unknown>).owner as string ?? '',
+    obj_edit_time: n.obj_edit_time,
+  }));
+}
+
+// Recursively get ALL nodes in a space (tree traversal)
+export async function listAllSpaceNodes(spaceId: string): Promise<WikiNodeInfo[]> {
+  const allNodes: WikiNodeInfo[] = [];
+
+  async function traverse(parentToken?: string) {
+    const nodes = await listSpaceNodes(spaceId, parentToken);
+    for (const node of nodes) {
+      allNodes.push(node);
+      if (node.has_child) {
+        await traverse(node.node_token);
+      }
+    }
+  }
+
+  await traverse('');  // empty string = root level
+  return allNodes;
 }
 
 // --- Wiki Node Resolution ---
