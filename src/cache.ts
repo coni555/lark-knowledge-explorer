@@ -1,7 +1,7 @@
 // src/cache.ts
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
-import type { KnowledgeNode, Edge, Cluster, CacheMeta } from './types.js';
+import type { KnowledgeNode, Edge, Cluster, CacheMeta, StructuralInsight, SemanticInsight, CollisionInsight } from './types.js';
 
 export class CacheStore {
   constructor(private dir: string) {}
@@ -68,6 +68,30 @@ export class CacheStore {
   async writeSummaries(map: Map<string, { summary: string; keywords: string[]; updated_at: string }>) {
     const arr = [...map.entries()].map(([id, v]) => ({ id, ...v }));
     await this.writeJSON('summaries.json', arr);
+  }
+
+  // Structural insights
+  async readStructuralInsights(): Promise<StructuralInsight[]> {
+    return (await this.readJSON<StructuralInsight[]>('structural_insights.json')) ?? [];
+  }
+  async writeStructuralInsights(insights: StructuralInsight[]) {
+    await this.writeJSON('structural_insights.json', insights);
+  }
+
+  // Semantic insights
+  async readSemanticInsights(): Promise<SemanticInsight[]> {
+    return (await this.readJSON<SemanticInsight[]>('semantic_insights.json')) ?? [];
+  }
+  async writeSemanticInsights(insights: SemanticInsight[]) {
+    await this.writeJSON('semantic_insights.json', insights);
+  }
+
+  // Collision insights
+  async readCollisionInsights(): Promise<CollisionInsight[]> {
+    return (await this.readJSON<CollisionInsight[]>('collision_insights.json')) ?? [];
+  }
+  async writeCollisionInsights(insights: CollisionInsight[]) {
+    await this.writeJSON('collision_insights.json', insights);
   }
 
   // Freshness: node is fresh if fetched_at >= updated_at

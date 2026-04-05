@@ -304,8 +304,47 @@ knowledge-explorer/
 - [x] 集成测试通过 — 全量扫描 16 篇 → 6 个聚类 → 29 条边 → 碰撞洞察 ✅
 - [x] `--owner me` 测试通过 — 8 篇 → 3 个聚类 → 23 条边 ✅
 
-### 待做
+### 已完成（2026-04-05 第二轮）
 
-- [ ] README 更新（新 CLI 用法、GIF 录制）
-- [ ] 报名参赛
+- [x] README 全面更新 — 新 CLI 用法、中文描述、Sample Output、Skill 说明、GitHub 用户名修正
+- [x] SKILL.md 创建 — 标准 frontmatter + 完整使用指南，符合 lark-cli 创作者大赛 skill 格式
+- [x] Git 邮箱关联 GitHub 账号 — commit 显示贡献者头像
+
+### 已完成（2026-04-05 第三轮：Plan C + 核心优化）
+
+- [x] **双模式架构（Plan C）** — CLI 拆分为三阶段，支持 Claude 直接分析和外部 API 两种模式
+  - `--collect-only`: 仅收集文档到缓存（含 content），不需 AI
+  - `--analyze-only`: 读缓存文档，API 分析，写结果到缓存
+  - `--render-only`: 读缓存分析结果，输出终端+飞书文档
+  - 默认模式（无 flag）: 完整管线，向后兼容
+- [x] **缓存扩展** — 新增 structural/semantic/collision insights 持久化
+- [x] **聚类 prompt 调优（P0）** — 组数范围 `ceil(N/4)` ~ `ceil(N/2)`，"宁可多分"+"每组最多5篇"
+  - 效果：16 篇 2 组 → 4~6 组
+- [x] **关键词提取增强（P0）** — 3-5 个 → 5-8 个，分三层（主题+领域+实体）
+- [x] **碰撞条件放宽（P1）** — keywordSimilarity 子串匹配 + 随机采样兜底 + 聚类≤2 跳过限制
+  - 效果：0 条碰撞 → 5 条高质量碰撞洞察
+- [x] **SKILL.md v0.3** — 双模式工作流 + 完整 cache 文件 JSON schema
+- [x] 集成测试通过：
+  - `--collect-only` ✅ 16 篇文档含 content 缓存
+  - `--analyze-only` ✅ 4 聚类 + 35 边 + 5 碰撞
+  - `--render-only` ✅ 终端输出+飞书文档
+  - 默认模式 ✅ "认知"14篇 → 6 聚类 + 34 边 + 5 碰撞
+  - 单元测试 7/7 通过
+
+### 待优化
+
+#### P2：输出体验
+
+- [ ] **终端输出增强** — 每个聚类下列出文档标题（当前只显示数量），碰撞洞察显示 reasoning
+- [ ] **飞书文档排版优化** — 加目录、分割线、更好的 callout 使用
+
+#### P3：健壮性
+
+- [ ] **dotenv 自动加载** — 代码中自动读 .env，不依赖 shell export
+- [ ] **错误重试** — AI API 偶尔 429/500，加指数退避重试
+
+### 待做（非代码）
+
+- [ ] GIF 录制（用户手动）
+- [ ] 报名参赛（用户手动）
 - [ ] 推广（Hacker News / V2EX / 即刻 / 夜识AI 公众号）

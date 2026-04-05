@@ -160,9 +160,26 @@ export async function computeCollisionInsights(
     directPairs.add(`${e.target}:${e.source}`);
   }
 
-  // Find candidate pairs: different cluster, no direct edge, keyword overlap
-  interface Candidate { a: KnowledgeNode; b: KnowledgeNode; overlap: number }
+  // Keyword similarity: exact match + substring match
+  function keywordSimilarity(kwA: string[], kwB: string[]): number {
+    const exact = kwA.filter(k => kwB.includes(k)).length;
+    if (exact > 0) return exact * 2;
+    let partial = 0;
+    for (const a of kwA) {
+      for (const b of kwB) {
+        if (a.length >= 2 && b.length >= 2 && (a.includes(b) || b.includes(a))) {
+          partial++;
+        }
+      }
+    }
+    return partial;
+  }
+
+  // Find candidate pairs
+  interface Candidate { a: KnowledgeNode; b: KnowledgeNode; score: number }
   const candidates: Candidate[] = [];
+  const clusterCount = new Set([...nodeCluster.values()]).size;
+  const requireDiffCluster = clusterCount > 2;
 
   const nodesWithKeywords = nodes.filter(n => n.keywords.length > 0 && n.summary);
   for (let i = 0; i < nodesWithKeywords.length; i++) {
@@ -170,22 +187,37 @@ export async function computeCollisionInsights(
       const a = nodesWithKeywords[i];
       const b = nodesWithKeywords[j];
 
-      // Different cluster?
-      if (nodeCluster.get(a.id) === nodeCluster.get(b.id)) continue;
+      // Different cluster (skip check when ≤2 clusters)
+      if (requireDiffCluster && nodeCluster.get(a.id) === nodeCluster.get(b.id)) continue;
 
-      // No direct edge?
+      // No direct edge
       if (directPairs.has(`${a.id}:${b.id}`)) continue;
 
-      // Keyword overlap?
-      const overlap = a.keywords.filter(k => b.keywords.includes(k)).length;
-      if (overlap > 0) {
-        candidates.push({ a, b, overlap });
+      const score = keywordSimilarity(a.keywords, b.keywords);
+      if (score > 0) {
+        candidates.push({ a, b, score });
       }
     }
   }
 
-  // Sort by overlap, take top 5
-  candidates.sort((x, y) => y.overlap - x.overlap);
+  // Fallback: random cross-cluster sampling when too few candidates
+  if (candidates.length < 3 && nodesWithKeywords.length >= 4) {
+    const existing = new Set(candidates.map(c => `${c.a.id}:${c.b.id}`));
+    for (let attempt = 0; attempt < 20 && candidates.length < 5; attempt++) {
+      const i = Math.floor(Math.random() * nodesWithKeywords.length);
+      const j = Math.floor(Math.random() * nodesWithKeywords.length);
+      if (i === j) continue;
+      const a = nodesWithKeywords[i];
+      const b = nodesWithKeywords[j];
+      const key = a.id < b.id ? `${a.id}:${b.id}` : `${b.id}:${a.id}`;
+      if (existing.has(key) || directPairs.has(`${a.id}:${b.id}`)) continue;
+      existing.add(key);
+      candidates.push({ a, b, score: 0.1 });
+    }
+  }
+
+  // Sort by score, take top 5
+  candidates.sort((x, y) => y.score - x.score);
   const top = candidates.slice(0, 5);
 
   if (top.length === 0) return [];

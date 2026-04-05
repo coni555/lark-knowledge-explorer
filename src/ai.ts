@@ -49,7 +49,10 @@ async function chatComplete(systemPrompt: string, userPrompt: string): Promise<s
 export async function summarizeDoc(title: string, content: string): Promise<{ summary: string; keywords: string[] }> {
   const system = `你是知识管理助手。为给定文档生成：
 1. 一句话中文摘要（不超过100字）
-2. 3-5个关键词
+2. 5-8个关键词，覆盖三层：
+   - 主题词（文档核心话题，如"用户增长"、"留学规划"）
+   - 领域词（所属领域，如"产品运营"、"教育"）
+   - 实体词（具体名词，如"MBTI"、"飞书"、"英国"）
 
 严格以JSON格式返回：{"summary": "...", "keywords": ["...", "..."]}`;
 
@@ -133,9 +136,11 @@ export async function batchCluster(
   const system = `你是知识图谱分析师。将以下文档按语义主题分组。
 规则：
 - 每篇文档恰好属于一个组
-- 组数在 2 到 ${Math.max(2, Math.ceil(docs.length / 3))} 之间，由内容自然决定
+- 组数在 ${Math.max(3, Math.ceil(docs.length / 4))} 到 ${Math.max(4, Math.ceil(docs.length / 2))} 之间
+- 宁可多分不要少分：如果两个主题有明显区别，即使相关也应分为不同组
+- 每组最多 5 篇文档，超过 5 篇请考虑拆分为子主题
 - 组标签用简短的中文主题词（2-6字）
-- 不要创建只有1篇文档的组，至少2篇才成组；无法归类的放入"其他"组
+- 无法归类的放入"其他"组
 
 严格以JSON数组格式返回：[{"cluster_label": "主题标签", "doc_ids": ["id1", "id2", ...]}, ...]`;
 
