@@ -1,27 +1,59 @@
-# Knowledge Explorer — 飞书知识探索器
+<div align="center">
 
-> 飞书 CLI 创作者大赛参赛作品
+# Knowledge Explorer
 
-Scan your Feishu (Lark) knowledge base, automatically discover hidden relationships between documents, and generate actionable insights.
+### 飞书知识探索器
 
-扫描飞书知识库，自动发现文档间的隐藏关系，生成可行动的洞察。
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org/)
+[![lark-cli](https://img.shields.io/badge/lark--cli-required-blue.svg)](https://github.com/larksuite/cli)
+
+Scan your Feishu knowledge base, discover hidden relationships between documents,<br>
+and generate actionable insights — all from a single command.
+
+扫描飞书知识库，自动发现文档间的隐藏关系，生成可行动的碰撞洞察。
+
+[Quick Start](#-quick-start) · [Features](#-what-it-discovers) · [Two Modes](#-two-analysis-modes) · [How It Works](#-how-it-works) · [As a Skill](#-use-as-ai-agent-skill) · [Contributing](#-contributing)
+
+</div>
+
+---
+
+<!-- TODO: replace with actual GIF recording -->
+<!-- <p align="center"><img src="docs/demo.gif" width="700" alt="Knowledge Explorer Demo"></p> -->
 
 ## Why?
 
-- 知识库越大越乱——文档间的关联只存在于你的脑子里
-- 飞书没有 Obsidian 那样的图谱视图
-- 团队可能在不同空间写了重复的内容，彼此不知情
-- 你从来不知道哪两篇看似无关的文档碰在一起能产生新想法
+Your Feishu knowledge base grows every day, but the connections between documents live only in your head.
 
-## Quick Start
+- **No graph view** — Feishu has no Obsidian-like knowledge graph
+- **Hidden duplicates** — teams write similar content in different spaces without knowing
+- **Missed connections** — two unrelated docs might spark a brilliant idea when combined
+- **Knowledge decay** — important docs go stale while still being heavily referenced
+
+Knowledge Explorer fixes this by using AI to **build connections from scratch** — not just find existing links.
+
+## ✨ What It Discovers
+
+| | Type | Example |
+|---|---|---|
+| 🏛 | **Hub Documents** | *"Q1 Planning" is referenced by 12 other docs — your knowledge anchor* |
+| 🏝 | **Orphan Documents** | *5 meeting notes have zero connections — consider archiving or linking* |
+| 🌉 | **Bridge Documents** | *"User Research" connects the Product and Marketing clusters* |
+| ⏰ | **Stale Documents** | *"Competitor Analysis" hasn't been updated in 89 days but 7 docs cite it* |
+| 🔗 | **Topic Clusters** | *AI groups your docs into themes like #UserGrowth, #TechDebt, #CompetitorIntel* |
+| 💡 | **Collision Insights** | *"Competitor Pricing" × "User Interviews" → design a tiered pricing strategy* |
+
+**Collision Insights** are the killer feature — they find documents from different clusters that share hidden connections, and suggest how combining them creates new value.
+
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- [lark-cli](https://github.com/larksuite/cli) installed and authenticated (`lark-cli auth login`)
-- Node.js >= 18
-- An OpenAI-compatible API key (for AI insights)
+- [lark-cli](https://github.com/larksuite/cli) installed and logged in
+- Node.js >= 20
 
-### Install & Run
+### Install
 
 ```bash
 git clone https://github.com/coni555/knowledge-explorer.git
@@ -29,117 +61,175 @@ cd knowledge-explorer
 npm install && npm run build
 ```
 
+### Run
+
 ```bash
-# Set your AI API key
-export OPENAI_API_KEY=sk-xxx
-# Optional: custom endpoint (e.g. Qwen, DeepSeek)
-export OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+# Option A: Let Claude analyze (zero API config)
+npx knowledge-explorer --collect-only
+# → Then ask Claude to read .knowledge-cache/ and analyze
 
-# Full scan — explore all accessible wiki spaces
+# Option B: Fully automated with AI API
+echo "OPENAI_API_KEY=sk-xxx" > .env
+echo "OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1" >> .env
 npx knowledge-explorer
-
-# Search specific topics
-npx knowledge-explorer --query "产品规划"
-
-# Only my documents
-npx knowledge-explorer --owner me
-
-# Scan a specific space
-npx knowledge-explorer --space <space_id>
-
-# List all accessible spaces
-npx knowledge-explorer --list-spaces
 ```
 
-### CLI Options
+That's it. Terminal report + Feishu doc auto-generated.
+
+## 🔀 Two Analysis Modes
+
+| | Claude-Direct (Path A) | API Pipeline (Path B) |
+|---|---|---|
+| **Setup** | Zero config | Needs `OPENAI_API_KEY` |
+| **How** | `--collect-only` → Claude analyzes cache → `--render-only` | Single command, fully automated |
+| **Best for** | Claude Code / Codex users | Batch runs, CI/CD |
+| **Cost** | Your Claude subscription | API token costs |
+
+### Path A: Claude-Direct
+
+```bash
+npx knowledge-explorer --collect-only          # Step 1: Collect docs
+# Claude reads .knowledge-cache/nodes.json     # Step 2: AI analysis
+npx knowledge-explorer --render-only           # Step 3: Render report
+```
+
+### Path B: API Pipeline
+
+```bash
+npx knowledge-explorer                         # Full scan + AI + output
+npx knowledge-explorer --query "产品规划"       # Keyword search
+npx knowledge-explorer --owner me              # Only my docs
+```
+
+<details>
+<summary><b>All CLI Options</b></summary>
 
 | Option | Description |
 |--------|-------------|
-| (no args) | Full scan: traverse all wiki spaces + global search |
-| `--query <keyword>` | Keyword search mode (faster, narrower) |
+| `--collect-only` | Collect docs to cache (no AI needed) |
+| `--analyze-only` | Analyze cached docs (needs API key) |
+| `--render-only` | Render cached results to terminal + Feishu doc |
+| `--query <keyword>` | Keyword search mode (instead of full scan) |
 | `--owner me\|others\|<name>` | Filter by document owner |
-| `--space <space_id>` | Limit full scan to one space |
-| `--max-pages <n>` | Max search pages in keyword mode (default: 10) |
-| `--list-spaces` | List all accessible wiki spaces and exit |
+| `--space <space_id>` | Limit to specific wiki space |
+| `--max-pages <n>` | Max search pages (default: 10) |
+| `--list-spaces` | List all accessible spaces |
 
-### Environment Variables
+**Environment Variables** (auto-loaded from `.env`):
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `OPENAI_API_KEY` | Yes | OpenAI-compatible API key |
-| `OPENAI_BASE_URL` | No | Custom API endpoint (default: OpenAI) |
-| `AI_MODEL` | No | Model name (default: gpt-4o-mini) |
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OPENAI_API_KEY` | OpenAI-compatible API key | — |
+| `OPENAI_BASE_URL` | Custom endpoint | `https://api.openai.com/v1` |
+| `AI_MODEL` | Model name | `gpt-4o-mini` |
 
-## What It Discovers
+</details>
 
-### Knowledge Health
-
-- **Hub documents** — highly referenced, central to your knowledge
-- **Orphan documents** — isolated, no connections to others
-- **Bridge documents** — connect different topic clusters
-- **Stale documents** — frequently referenced but not updated
-
-### Topic Clusters
-
-AI-powered semantic clustering groups related documents automatically — even without explicit links between them. Each cluster gets a theme label and cross-document analysis.
-
-### Collision Insights
-
-The most unique feature: finds documents from **different clusters** that share hidden connections, and generates creative suggestions for combining their ideas.
-
-Example: *"Competitor Pricing" x "User Interviews" → Design a tiered pricing strategy based on willingness-to-pay data*
-
-## How It Works
+## 📊 Sample Output
 
 ```
-Phase 1: Collect       Traverse wiki spaces + search via lark-cli
-    ↓
-Phase 2: Build Graph   AI summaries → semantic clustering → auto-generate edges
-    ↓
-Phase 3: Insights      L1 structural → L2 semantic → L3 collision
-    ↓
-Phase 4: Output        Terminal report + Feishu document (auto-created)
-```
-
-**Semantic-first architecture**: Instead of looking for existing links between documents, the tool uses AI to understand content and build connections from scratch. This is critical because most personal knowledge bases have few or no explicit cross-references.
-
-## Sample Output
-
-```
-🔍 Knowledge Explorer — 飞书知识探索器
+🔍 扫描完成：14 篇文档
 
 📊 知识健康度
-  ├ 枢纽文档 (3)：Q1规划、技术架构、用户画像
-  ├ 孤岛文档 (5)：会议纪要-0312、...
-  └ 可能过期 (2)：竞品分析(89天未更新，被7篇引用)
+  🏛 枢纽文档 (9)：MBTI人格与留学路径选择、活动策划方案 等
+  🌉 桥梁文档 (9)：知识探索报告、MBTI人格与留学路径选择 等
+  ⏰ 可能过期 (3)：假期充电站、IP增长项目培训、鹅圈子学院方案
 
-🔗 发现 4 个主题聚类
-  ├ #用户增长 (12篇)  ├ #技术债务 (8篇)
-  ├ #竞品情报 (6篇)   └ #团队协作 (5篇)
+🔗 发现 6 个主题聚类
+  ├ #留学路径适配 (4篇)
+  │   · 知识探索报告 2026-04-05
+  │   · INFP|不同MBTI人格与留学路径选择
+  │   · ...
+  ├ #阅读力提升 (4篇)
+  │   · 「原著阅读俱乐部」学习手册
+  │   · 浪前·阅读力工坊-策划案
+  │   · ...
+  └ #AI阅读工坊 (2篇)
+      · 认知雷达 Prompt 实验室
+      · 《信息过载终结者》
 
-💡 碰撞洞察 (Top 3)
-  1.《竞品定价》×《用户访谈》→ 可设计阶梯定价方案
-  2.《技术债务清单》×《Q2招聘计划》→ 按债务优先级排招聘需求
-  3.《用户流失分析》×《功能路线图》→ 流失Top原因未在路线图中
+💡 碰撞洞察 (Top 5)
+  1.《知识探索报告》×《MBTI情报局活动策划方案》
+     → 将 MBTI-留学路径知识图谱嵌入7天线上活动，生成个性化匹配建议
+     文档A提供结构化的人格-环境匹配知识资产，文档B具备成熟的私域触达路径...
+  2.《认知雷达 Prompt 实验室》×《假期充电站》
+     → 联合发起双周共读行动，用构建式阅读设计 Prompt 任务流...
 
-📄 完整报告已生成 → [飞书文档链接]
+📄 完整报告已生成 → https://feishu.cn/docx/xxx
 ```
 
-## Tech Stack
+## ⚙️ How It Works
 
-- TypeScript
-- [lark-cli](https://github.com/larksuite/cli) (Feishu API layer)
-- OpenAI-compatible API (AI analysis)
-- Pure JSON caching (no database)
+```
+                    ┌─────────────────────────────────┐
+                    │  Phase 1: Collect                │
+                    │  Traverse wiki spaces + search   │
+                    │  via lark-cli                    │
+                    └──────────────┬──────────────────┘
+                                   ↓
+                    ┌─────────────────────────────────┐
+                    │  Phase 2: Build Graph            │
+                    │  AI summaries → semantic         │
+                    │  clustering → auto-generate edges│
+                    └──────────────┬──────────────────┘
+                                   ↓
+                    ┌─────────────────────────────────┐
+                    │  Phase 3: Generate Insights      │
+                    │  L1 structural → L2 semantic     │
+                    │  → L3 collision                  │
+                    └──────────────┬──────────────────┘
+                                   ↓
+                    ┌─────────────────────────────────┐
+                    │  Phase 4: Output                 │
+                    │  Terminal report + Feishu doc    │
+                    │  (auto-created)                  │
+                    └─────────────────────────────────┘
+```
 
-## As a Claude Code Skill
+**Semantic-first architecture**: Instead of finding existing links, the tool uses AI to understand content and build connections from scratch — because most personal knowledge bases have few or no explicit cross-references.
 
-This project includes a `SKILL.md` that can be used as a [Claude Code](https://claude.ai/claude-code) skill. Copy the project to your skills directory to let your AI agent explore your Feishu knowledge base conversationally.
+## 🛠 Tech Stack
+
+- **TypeScript** — CLI core
+- **[lark-cli](https://github.com/larksuite/cli)** — Feishu API layer
+- **OpenAI-compatible API** — AI analysis (Qwen, DeepSeek, GPT, etc.)
+- **Pure JSON caching** — no database dependency
+
+## 🤖 Use as AI Agent Skill
+
+Knowledge Explorer ships with a `SKILL.md` for [Claude Code](https://claude.ai/claude-code) and Codex. Install it to let your AI agent explore Feishu knowledge bases conversationally:
 
 ```bash
+# Claude Code
 cp -r knowledge-explorer ~/.claude/skills/knowledge-explorer
+
+# Codex
+cp -r knowledge-explorer ~/.codex/skills/knowledge-explorer
 ```
+
+The skill supports both analysis modes — Claude can either run the full pipeline or do the analysis itself using cached documents.
+
+## 🤝 Contributing
+
+Contributions welcome! If you find a bug or have feature ideas:
+
+1. [Open an Issue](https://github.com/coni555/knowledge-explorer/issues)
+2. Fork → branch → PR
+
+For major changes, please open an issue first to discuss.
+
+## 📈 Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=coni555/knowledge-explorer&type=Date)](https://star-history.com/#coni555/knowledge-explorer&Date)
 
 ## License
 
-MIT
+[MIT](LICENSE)
+
+---
+
+<div align="center">
+
+**Built for the [lark-cli Creator Contest](https://waytoagi.feishu.cn/wiki/R4S3w8wTTie04nkYiL6c8rxon4d)** · If this is useful, please star ⭐
+
+</div>

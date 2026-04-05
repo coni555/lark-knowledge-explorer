@@ -1,7 +1,6 @@
 ---
 name: knowledge-explorer
-version: 0.3.0
-description: "飞书知识探索器：扫描飞书知识库，AI语义聚类自动发现文档间隐藏关系，生成碰撞洞察和行动建议。支持 Claude 直接分析（零配置）或外部 API 模式。当用户需要分析知识库结构、发现文档关联、检查知识健康度（孤岛/过期/重复）、或想从已有文档中碰撞出新想法时使用。If user mentions 知识图谱、文档关系、知识库分析、explore my docs, use this skill."
+description: "Scan Feishu/Lark knowledge bases to discover hidden document relationships via AI semantic clustering, then generate collision insights and actionable suggestions. Supports two modes: Claude-direct analysis (zero API config) and external API pipeline. Use when user mentions 知识图谱, 文档关系, 知识库分析, 知识健康度, 孤岛文档, explore my docs, scan my wiki, or wants to find connections between existing documents. Do NOT use for: reading/editing a single Feishu doc (use lark-doc), querying Feishu spreadsheets (use lark-sheets), or managing wiki structure (use lark-wiki)."
 metadata:
   requires:
     bins: ["lark-cli", "node"]
@@ -9,164 +8,81 @@ metadata:
 
 # Knowledge Explorer — 飞书知识探索器
 
-> **前置条件：** lark-cli 已登录（`lark-cli auth login`）、Node.js >= 18
+> 前置：lark-cli 已登录（`lark-cli auth login`）、Node.js >= 20、项目目录 `~/Desktop/knowledge-explorer/`
 
-## 两种分析模式
+## Mode Decision
 
-### Path A：Claude 直接分析（推荐，零配置）
+Pick the right mode based on context:
 
-不需要任何 API key，由 Claude 直接完成 AI 分析。
+- **Claude-direct（Path A）** — 用户没有 API key，或希望你直接分析。三步分离：collect → 你来分析 → render。
+- **API pipeline（Path B）** — 用户有 OpenAI 兼容 key（通义千问/DeepSeek 等）。一条命令全自动。
 
-**Step 1 — 收集文档**
+如果不确定，问一句："你有通义千问或其他 AI API key 吗？没有的话我直接帮你分析。"
+
+## Path A: Claude-Direct Analysis
+
+### Step 1 — Collect
 
 ```bash
 cd ~/Desktop/knowledge-explorer
-
-# 全量扫描
-npx knowledge-explorer --collect-only
-
-# 或关键词搜索
-npx knowledge-explorer --collect-only --query "产品规划"
-
-# 可选过滤
-npx knowledge-explorer --collect-only --owner me
-npx knowledge-explorer --collect-only --space <space_id>
+npx knowledge-explorer --collect-only             # 全量扫描
+npx knowledge-explorer --collect-only --query "关键词"  # 关键词搜索
 ```
 
-**Step 2 — Claude 分析**
+可选 flags: `--owner me`, `--space <id>`, `--max-pages <n>`。
+For full CLI reference, see `references/cli-reference.md`.
 
-收集完成后，读取 `.knowledge-cache/nodes.json`，对每篇文档：
+确认输出 `✓ 收集完成，N 篇文档已缓存` 后进入 Step 2。
 
-1. **生成摘要和关键词**：读取文档 content，生成 summary（100字内）和 keywords（5-8个），写入 `summaries.json`
-2. **语义聚类**：根据所有摘要和关键词，按主题分组（4-8组），写入 `clusters.json`
-3. **建立关系边**：簇内文档建 semantic 边，写入 `edges.json`
-4. **结构分析**：计算枢纽/孤岛/桥梁/过期文档，写入 `structural_insights.json`
-5. **聚类深度分析**：每个聚类的共同主题、矛盾、重复，写入 `semantic_insights.json`
-6. **碰撞洞察**：跨簇文档的创意组合，写入 `collision_insights.json`
+### Step 2 — Analyze (You)
 
-**Step 3 — 渲染输出**
+读取 `.knowledge-cache/nodes.json`，对缓存文档执行以下分析，逐步写入缓存文件。
+
+每个缓存文件的 JSON schema 见 `references/cache-schema.md`。
+
+1. **摘要 + 关键词** — 逐篇读 content，生成 summary（≤100字）和 keywords（5-8个，分主题/领域/实体三层）。写入 `summaries.json`。
+2. **语义聚类** — 根据所有摘要，按主题分组（目标 `ceil(N/4)` ~ `ceil(N/2)` 组，每组≤5篇，宁可多分不要硬凑）。写入 `clusters.json`。
+3. **关系边** — 同簇文档两两建 semantic edge，weight 按相关度 0.5-1.0。写入 `edges.json`。
+4. **结构洞察** — 计算枢纽（入度≥2）、孤岛（无边）、桥梁（跨簇边）、过期（>30天未更新且被引用）。写入 `structural_insights.json`。
+5. **聚类深度分析** — 每个聚类的共同主题、矛盾观点、重复内容。写入 `semantic_insights.json`。
+6. **碰撞洞察** — 挑 3-5 对跨簇、无直连、但有潜在交叉的文档对，生成行动建议 + reasoning。写入 `collision_insights.json`。
+
+每步完成后告知用户进度。碰撞洞察是核心价值——要具体到可执行的行动，不要泛泛而谈。
+
+### Step 3 — Render
 
 ```bash
 npx knowledge-explorer --render-only
 ```
 
-### Path B：全自动 API 模式
+输出终端彩色报告 + 自动创建飞书文档。把飞书文档链接返回给用户。
 
-需要 OpenAI 兼容 API key（通义千问、DeepSeek 等）。
+## Path B: API Pipeline
 
 ```bash
-export OPENAI_API_KEY=sk-xxx
-export OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-npx knowledge-explorer
+cd ~/Desktop/knowledge-explorer
+npx knowledge-explorer                          # 全量扫描 + AI 分析 + 输出
+npx knowledge-explorer --query "产品规划"        # 关键词搜索
 ```
 
-## CLI 参数
+需要环境变量（项目根目录 `.env` 会自动加载）：
+- `OPENAI_API_KEY` — API key
+- `OPENAI_BASE_URL` — 默认 OpenAI，通义千问用 `https://dashscope.aliyuncs.com/compatible-mode/v1`
+- `AI_MODEL` — 默认 `gpt-4o-mini`
 
-| 参数 | 说明 |
-|------|------|
-| (无参数) | 全量扫描 + API 分析 + 输出 |
-| `--collect-only` | 仅收集文档到缓存 |
-| `--analyze-only` | 仅分析缓存中的文档（需 API key） |
-| `--render-only` | 仅从缓存读取结果并输出 |
-| `--query <keyword>` | 关键词搜索模式 |
-| `--owner me\|others\|<name>` | 按文档所有者过滤 |
-| `--space <space_id>` | 限定某个空间 |
-| `--max-pages <n>` | 搜索最大页数 |
-| `--list-spaces` | 列出所有可访问空间 |
+也支持分阶段执行：`--collect-only` → `--analyze-only` → `--render-only`。
 
-## Cache 文件 Schema（Claude 分析时写入）
+## Troubleshooting
 
-所有文件位于 `.knowledge-cache/` 目录。
+| 症状 | 原因 | 修复 |
+|------|------|------|
+| `未找到任何文档` | lark-cli 未登录或无权限 | `lark-cli auth login --scope search:docs_wiki:readonly,wiki:node:read,docx:document:readonly,docx:document` |
+| `AI not configured` | 缺 API key（Path B） | 检查 `.env` 或改用 Path A |
+| `429 Too Many Requests` | API 限流 | 等几分钟重试，或换 key |
+| 聚类结果太少（≤2组） | 文档数太少或主题太集中 | 扩大搜索范围（去掉 --query 限制） |
+| 飞书文档创建失败 | 缺 `docx:document` scope | `lark-cli auth login --scope docx:document` |
 
-### summaries.json
+## Output
 
-```json
-[
-  {
-    "id": "doc_token",
-    "summary": "一句话中文摘要",
-    "keywords": ["主题词", "领域词", "实体词"],
-    "updated_at": "2026-04-05T10:00:00Z"
-  }
-]
-```
-
-### clusters.json
-
-```json
-[
-  {
-    "id": "cluster_0",
-    "label": "主题标签（2-6字）",
-    "node_ids": ["doc_id_1", "doc_id_2"],
-    "summary": "该聚类的一句话描述"
-  }
-]
-```
-
-### edges.json
-
-```json
-[
-  {
-    "source": "doc_id_1",
-    "target": "doc_id_2",
-    "type": "semantic",
-    "weight": 0.8,
-    "reason": "聚类主题标签"
-  }
-]
-```
-
-### structural_insights.json
-
-```json
-[
-  {
-    "type": "hub|orphan|bridge|stale",
-    "node_ids": ["doc_id_1"],
-    "description": "中文描述"
-  }
-]
-```
-
-### semantic_insights.json
-
-```json
-[
-  {
-    "cluster_id": "cluster_0",
-    "themes": ["共同话题1"],
-    "contradictions": ["矛盾观点"],
-    "duplicates": ["可能重复的内容"],
-    "summary": "聚类分析摘要"
-  }
-]
-```
-
-### collision_insights.json
-
-```json
-[
-  {
-    "node_a_id": "doc_id_1",
-    "node_b_id": "doc_id_2",
-    "suggestion": "一句话行动建议",
-    "reasoning": "为什么这两篇可以结合"
-  }
-]
-```
-
-## 输出内容
-
-- **终端**：彩色报告（知识健康度 + 主题聚类 + 碰撞洞察）
-- **飞书文档**：自动创建完整分析报告
-
-## 权限
-
-| 操作 | scope |
-|------|-------|
-| 搜索文档 | `search:docs_wiki:readonly` |
-| 读取 wiki 节点 | `wiki:node:read` |
-| 读取文档内容 | `docx:document:readonly` |
-| 创建报告文档 | `docx:document` |
+- **终端** — 知识健康度 → 主题聚类（含文档列表） → 碰撞洞察（含 reasoning） → 健康建议
+- **飞书文档** — 自动创建，含概览 callout、分割线分章、碰撞分析 callout
