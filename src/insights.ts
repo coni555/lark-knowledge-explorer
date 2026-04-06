@@ -14,29 +14,50 @@ export function computeStructuralInsights(
   const insights: StructuralInsight[] = [];
   const nodeMap = new Map(nodes.map(n => [n.id, n]));
 
-  // In-degree count
-  const inDegree = new Map<string, number>();
-  const outDegree = new Map<string, number>();
+  // Separate degree counts by edge type
+  // link/mention = "real references", semantic = "algorithmic connections"
+  const refInDegree = new Map<string, number>();   // link + mention
+  const semInDegree = new Map<string, number>();    // semantic only
+  const totalDegree = new Map<string, number>();    // all types combined
   for (const n of nodes) {
-    inDegree.set(n.id, 0);
-    outDegree.set(n.id, 0);
+    refInDegree.set(n.id, 0);
+    semInDegree.set(n.id, 0);
+    totalDegree.set(n.id, 0);
   }
   for (const e of edges) {
-    inDegree.set(e.target, (inDegree.get(e.target) ?? 0) + 1);
-    outDegree.set(e.source, (outDegree.get(e.source) ?? 0) + 1);
+    totalDegree.set(e.target, (totalDegree.get(e.target) ?? 0) + 1);
+    if (e.type === 'link' || e.type === 'mention') {
+      refInDegree.set(e.target, (refInDegree.get(e.target) ?? 0) + 1);
+    } else {
+      semInDegree.set(e.target, (semInDegree.get(e.target) ?? 0) + 1);
+    }
   }
 
-  // Hubs: top in-degree nodes (>= 2 incoming)
-  const hubThreshold = 2;
+  // Weighted score: link/mention count as 1.0, semantic as 0.3
+  function weightedScore(nodeId: string): number {
+    return (refInDegree.get(nodeId) ?? 0) + (semInDegree.get(nodeId) ?? 0) * 0.3;
+  }
+
+  // Hub description: distinguish "引用" (real refs) from "关联" (semantic)
+  function hubDescription(n: KnowledgeNode): string {
+    const refs = refInDegree.get(n.id) ?? 0;
+    const sems = semInDegree.get(n.id) ?? 0;
+    if (refs > 0 && sems > 0) return `《${n.title}》被 ${refs} 篇引用、与 ${sems} 篇语义关联`;
+    if (refs > 0) return `《${n.title}》被 ${refs} 篇文档引用`;
+    return `《${n.title}》与 ${sems} 篇文档语义关联`;
+  }
+
+  // Hubs: weighted score >= 1.5 (≈2 real refs, or 5 semantic edges)
+  const hubThreshold = 1.5;
   const hubs = nodes
-    .filter(n => (inDegree.get(n.id) ?? 0) >= hubThreshold)
-    .sort((a, b) => (inDegree.get(b.id) ?? 0) - (inDegree.get(a.id) ?? 0));
+    .filter(n => weightedScore(n.id) >= hubThreshold)
+    .sort((a, b) => weightedScore(b.id) - weightedScore(a.id));
 
   if (hubs.length > 0) {
     insights.push({
       type: 'hub',
       node_ids: hubs.map(n => n.id),
-      description: hubs.map(n => `《${n.title}》被 ${inDegree.get(n.id)} 篇文档引用`).join('；'),
+      description: hubs.map(n => hubDescription(n)).join('；'),
     });
   }
 
@@ -78,12 +99,13 @@ export function computeStructuralInsights(
     });
   }
 
-  // Stale: high in-degree but >30 days without update
+  // Stale: referenced docs (>30 days without update)
+  // Prioritize real references; fall back to weighted score
   const now = Date.now();
   const thirtyDays = 30 * 24 * 60 * 60 * 1000;
   const staleNodes = nodes.filter(n => {
     const age = now - new Date(n.updated_at).getTime();
-    return age > thirtyDays && (inDegree.get(n.id) ?? 0) >= 2;
+    return age > thirtyDays && weightedScore(n.id) >= 1.5;
   });
   if (staleNodes.length > 0) {
     insights.push({
@@ -91,7 +113,10 @@ export function computeStructuralInsights(
       node_ids: staleNodes.map(n => n.id),
       description: staleNodes.map(n => {
         const days = Math.floor((now - new Date(n.updated_at).getTime()) / (24 * 60 * 60 * 1000));
-        return `《${n.title}》${days}天未更新，被 ${inDegree.get(n.id)} 篇引用`;
+        const refs = refInDegree.get(n.id) ?? 0;
+        const sems = semInDegree.get(n.id) ?? 0;
+        const refPart = refs > 0 ? `被 ${refs} 篇引用` : `与 ${sems} 篇语义关联`;
+        return `《${n.title}》${days}天未更新，${refPart}`;
       }).join('；'),
     });
   }

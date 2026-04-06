@@ -37,10 +37,10 @@ Knowledge Explorer fixes this by using AI to **build connections from scratch** 
 
 | | Type | Example |
 |---|---|---|
-| 🏛 | **Hub Documents** | *"Q1 Planning" is referenced by 12 other docs — your knowledge anchor* |
-| 🏝 | **Orphan Documents** | *5 meeting notes have zero connections — consider archiving or linking* |
+| 🏛 | **Hub Documents** | *"Q1 Planning" is cited by 4 docs and semantically linked to 8 more — your knowledge anchor* |
+| 🏝 | **Orphan Documents** | *5 docs have zero connections — consider archiving or linking* |
 | 🌉 | **Bridge Documents** | *"User Research" connects the Product and Marketing clusters* |
-| ⏰ | **Stale Documents** | *"Competitor Analysis" hasn't been updated in 89 days but 7 docs cite it* |
+| ⏰ | **Stale Documents** | *"Competitor Analysis" hasn't been updated in 89 days but 3 docs still cite it* |
 | 🔗 | **Topic Clusters** | *AI groups your docs into themes like #UserGrowth, #TechDebt, #CompetitorIntel* |
 | 💡 | **Collision Insights** | *"Competitor Pricing" × "User Interviews" → design a tiered pricing strategy* |
 

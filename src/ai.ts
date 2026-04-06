@@ -16,32 +16,72 @@ export function configureAI(cfg: AIConfig) {
   config = cfg;
 }
 
+const MAX_RETRIES = 3;
+const RETRY_DELAYS = [1000, 3000, 8000]; // exponential-ish backoff
+
 async function chatComplete(systemPrompt: string, userPrompt: string): Promise<string> {
   if (!config) throw new Error('AI not configured. Set OPENAI_API_KEY or call configureAI().');
 
-  const resp = await fetch(`${config.baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${config.apiKey}`,
-    },
-    body: JSON.stringify({
-      model: config.model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.7,
-    }),
-  });
+  let lastError: Error | null = null;
 
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`AI API error ${resp.status}: ${text}`);
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const resp = await fetch(`${config.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: config.model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.7,
+        }),
+      });
+
+      // Retryable status codes
+      if (resp.status === 429 || resp.status >= 500) {
+        const text = await resp.text();
+        lastError = new Error(`AI API error ${resp.status}: ${text}`);
+        if (attempt < MAX_RETRIES - 1) {
+          await new Promise(r => setTimeout(r, RETRY_DELAYS[attempt]));
+          continue;
+        }
+        throw lastError;
+      }
+
+      if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error(`AI API error ${resp.status}: ${text}`);
+      }
+
+      const data = await resp.json() as { choices: Array<{ message: { content: string } }> };
+      return data.choices[0].message.content;
+    } catch (err) {
+      lastError = err as Error;
+      // Network errors are retryable
+      if (attempt < MAX_RETRIES - 1 && (err as Error).message?.includes('fetch')) {
+        await new Promise(r => setTimeout(r, RETRY_DELAYS[attempt]));
+        continue;
+      }
+      throw err;
+    }
   }
 
-  const data = await resp.json() as { choices: Array<{ message: { content: string } }> };
-  return data.choices[0].message.content;
+  throw lastError ?? new Error('AI request failed after retries');
+}
+
+/** Safely extract JSON from AI response (handles markdown fences, trailing text) */
+function safeParseJSON<T>(raw: string): T {
+  // Strip markdown code fences
+  let cleaned = raw.replace(/```json\n?|\n?```/g, '').trim();
+  // Try to extract JSON array or object if there's surrounding text
+  const jsonMatch = cleaned.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
+  if (jsonMatch) cleaned = jsonMatch[1];
+  return JSON.parse(cleaned);
 }
 
 // --- Summarize a document ---
@@ -60,8 +100,7 @@ export async function summarizeDoc(title: string, content: string): Promise<{ su
   const raw = await chatComplete(system, user);
 
   try {
-    const cleaned = raw.replace(/```json\n?|\n?```/g, '').trim();
-    return JSON.parse(cleaned);
+    return safeParseJSON(raw);
   } catch {
     return { summary: title, keywords: [] };
   }
@@ -88,8 +127,7 @@ export async function analyzeCluster(docs: Array<{ title: string; summary: strin
   const raw = await chatComplete(system, user);
 
   try {
-    const cleaned = raw.replace(/```json\n?|\n?```/g, '').trim();
-    return JSON.parse(cleaned);
+    return safeParseJSON(raw);
   } catch {
     return { theme: '未分类', common_topics: [], contradictions: [], duplicates: [], summary: '' };
   }
@@ -117,8 +155,7 @@ export async function generateCollision(
   const raw = await chatComplete(system, user);
 
   try {
-    const cleaned = raw.replace(/```json\n?|\n?```/g, '').trim();
-    return JSON.parse(cleaned);
+    return safeParseJSON(raw);
   } catch {
     return { suggestion: '', reasoning: '' };
   }
@@ -186,8 +223,7 @@ async function callBatchCluster(
   const raw = await chatComplete(system, user);
 
   try {
-    const cleaned = raw.replace(/```json\n?|\n?```/g, '').trim();
-    const parsed = JSON.parse(cleaned) as Array<{ cluster_label: string; doc_ids: string[] }>;
+    const parsed = safeParseJSON<Array<{ cluster_label: string; doc_ids: string[] }>>(raw);
     if (!Array.isArray(parsed)) throw new Error('not array');
     return parsed;
   } catch {

@@ -2,7 +2,7 @@
 
 export interface KnowledgeNode {
   id: string;                    // wiki node token or doc token
-  type: 'wiki' | 'doc' | 'sheet' | 'meeting';
+  type: 'wiki' | 'doc';
   title: string;
   space: string;                 // space name or id
   owner?: string;                // owner name

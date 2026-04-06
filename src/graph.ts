@@ -178,21 +178,48 @@ export function findLinkEdges(nodes: KnowledgeNode[]): Edge[] {
   return edges;
 }
 
+// Generic titles that match everywhere — skip these
+const MENTION_STOP_TITLES = new Set([
+  '方案', '总结', '计划', '报告', '会议', '记录', '笔记', '概述',
+  '草稿', '测试', '简介', '说明', '分析', '反馈', '复盘', '周报',
+  '日报', '月报', '通知', '公告', '模板', '附件', '目录', '大纲',
+]);
+
 export function findMentionEdges(nodes: KnowledgeNode[]): Edge[] {
   const edges: Edge[] = [];
   const seen = new Set<string>();
 
+  // Pre-sort titles by length descending to prefer longer (more specific) matches
+  const targets = nodes
+    .filter(n => n.title.length >= 4 && !MENTION_STOP_TITLES.has(n.title))
+    .sort((a, b) => b.title.length - a.title.length);
+
   for (const source of nodes) {
     if (!source.content) continue;
-    for (const target of nodes) {
+    for (const target of targets) {
       if (source.id === target.id) continue;
-      if (target.title.length < 2) continue;
-      if (source.content.includes(target.title)) {
-        const key = `${source.id}->${target.id}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          edges.push({ source: source.id, target: target.id, type: 'mention', weight: 0.6 });
-        }
+
+      const idx = source.content.indexOf(target.title);
+      if (idx === -1) continue;
+
+      // Boundary check: reject if the match is embedded in a longer word/phrase
+      // For CJK: check chars immediately before/after aren't alphanumeric
+      // (CJK chars are natural word boundaries, so this mainly catches
+      //  English substrings like "AI" matching inside "FAIR")
+      const before = idx > 0 ? source.content[idx - 1] : '';
+      const after = idx + target.title.length < source.content.length
+        ? source.content[idx + target.title.length] : '';
+      const alphaNum = /[a-zA-Z0-9]/;
+      if (alphaNum.test(before) || alphaNum.test(after)) continue;
+
+      const key = `${source.id}->${target.id}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        // Weight by title specificity: longer titles = higher confidence
+        const weight = target.title.length >= 8 ? 0.7
+                     : target.title.length >= 6 ? 0.5
+                     : 0.3;
+        edges.push({ source: source.id, target: target.id, type: 'mention', weight });
       }
     }
   }
