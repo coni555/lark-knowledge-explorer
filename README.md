@@ -234,6 +234,7 @@ For major changes, please open an issue first to discuss.
 
 **Built for the [lark-cli Creator Contest](https://waytoagi.feishu.cn/wiki/R4S3w8wTTie04nkYiL6c8rxon4d)** · If this is useful, please star ⭐
 
-Thanks to [lark-cli](https://github.com/larksuite/cli) for making Feishu API accessible from the terminal.
+Thanks to [lark-cli](https://github.com/larksuite/cli) for making Feishu API accessible from the terminal.<br>
+And thank you to everyone who starred this project — your support means a lot.
 
 </div>
