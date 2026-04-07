@@ -13,5 +13,14 @@ dist/
 # Cache
 .knowledge-cache/
 
+# Internal docs (not for public repo)
+HANDOFF.md
+DESIGN.md
+docs/superpowers/
+
+# Dev backup READMEs
+README.dev.md
+README.zh.dev.md
+
 # OS
 .DS_Store
