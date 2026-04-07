@@ -166,32 +166,44 @@ npx knowledge-explorer
 ## 📊 Sample Output
 
 ```
-🔍 Scan complete: 18 documents
+🔍 Scan complete: 36 documents (Drive folder + search supplement)
 
 📊 Knowledge Health
-  🏛 Hub docs (7): Q3 Product Roadmap, User Onboarding Guide, etc.
-  🌉 Bridge docs (5): Competitive Analysis Report, Cross-team Sync Notes, etc.
-  ⏰ Possibly stale (3): New Hire Orientation, Legacy API Docs, Brand Guidelines v1
+  🏛 Hub docs (8): Reading Workshop Plan, Community Operations Guide, etc.
+  🌉 Bridge docs (6): Core Skills Curriculum, Student Journey Map, etc.
+  ⏰ Possibly stale (7): Summer Series #1-7 (last updated 3+ months ago)
 
 🔗 Found 5 topic clusters
-  ├ #ProductStrategy (5 docs)
-  │   · Q3 Product Roadmap
-  │   · Feature Prioritization Framework
+  ├ #ReadingWorkshop (8 docs)
+  │   · Reading Workshop Plan
+  │   · Core Thinking Curriculum
+  │   · Student Pain Points Collection
   │   · ...
-  ├ #UserResearch (4 docs)
-  │   · User Interview Insights Q2
-  │   · Persona Workshop Notes
+  ├ #CommunityOps (7 docs)
+  │   · Community SOP Execution Log
+  │   · Community Platform Proposal
+  │   · Group Onboarding Flow
   │   · ...
-  └ #EngineeringOps (3 docs)
-      · Incident Postmortem Template
-      · On-call Runbook
+  ├ #SummerSeries (7 docs)
+  │   · Summer Series | Expression Skills
+  │   · Summer Series | Information Management
+  │   · ...
+  ├ #EventPlanning (5 docs)
+  │   · Icebreaker Activity Guide
+  │   · Peer Sharing Session Plan
+  │   · ...
+  └ #MeetingNotes (4 docs)
+      · Weekly Highlights Jul 23
+      · Weekly Highlights Jul 30
 
 💡 Collision Insights (Top 5)
-  1. "User Interview Insights" × "Q3 Product Roadmap"
-     → Feed the top-3 unmet user needs directly into roadmap prioritization
-     Doc A surfaces recurring pain points from 12 interviews; Doc B lacks user-evidence backing...
-  2. "Incident Postmortem Template" × "New Hire Orientation"
-     → Add a "first-week oncall shadow" module using real postmortem walkthroughs...
+  1. "Student Pain Points" × "Core Thinking Curriculum"
+     → Restructure the 6-week curriculum around the top 3 pain points
+     Doc A reveals students struggle most with "extracting arguments" — but the curriculum
+     buries this in week 5. Moving it to week 1 could cut early dropout by half...
+  2. "Community SOP Log" × "Icebreaker Activity Guide"
+     → Embed the icebreaker as Day-1 of the community onboarding SOP
+     The SOP has a 40% silent-member rate; the icebreaker has 90% participation...
 
 📄 Full report generated → https://feishu.cn/docx/xxx
 ```
