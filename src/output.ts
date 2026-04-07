@@ -3,7 +3,8 @@ import type {
   KnowledgeNode, Edge, Cluster,
   StructuralInsight, SemanticInsight, CollisionInsight, ExploreResult,
 } from './types.js';
-import { createDoc } from './lark.js';
+import { createDoc, updateDoc } from './lark.js';
+import { CacheStore } from './cache.js';
 import chalk from 'chalk';
 
 // --- Terminal Output ---
@@ -233,17 +234,39 @@ function buildFeishuMarkdown(result: ExploreResult): string {
   return parts.join('\n');
 }
 
-export async function publishToFeishu(result: ExploreResult): Promise<string | null> {
+export async function publishToFeishu(result: ExploreResult, cache?: CacheStore): Promise<string | null> {
   const markdown = buildFeishuMarkdown(result);
-  const title = `知识探索报告 ${result.scanned_at.split('T')[0]}`;
+  const today = result.scanned_at.split('T')[0];
+  const title = `知识探索报告 ${today}`;
 
   try {
+    // Check if we already created a report today — overwrite instead of creating a new one
+    const meta = await cache?.readMeta();
+    if (meta?.report_doc_id && meta?.report_date === today) {
+      console.log(chalk.blue('📄 检测到今日已有报告，正在覆盖更新...'));
+      await updateDoc(meta.report_doc_id, markdown, title);
+      console.log(chalk.green(`   ✓ 报告已更新 → ${meta.report_doc_url}`));
+      return meta.report_doc_url ?? null;
+    }
+
+    // No existing report today — create new
     console.log(chalk.blue('📄 正在创建飞书文档...'));
     const doc = await createDoc(title, markdown);
     console.log(chalk.green(`   ✓ 报告已生成 → ${doc.doc_url}`));
+
+    // Save doc reference to meta for future reruns
+    if (cache && meta) {
+      await cache.writeMeta({
+        ...meta,
+        report_doc_id: doc.doc_id,
+        report_doc_url: doc.doc_url,
+        report_date: today,
+      });
+    }
+
     return doc.doc_url;
   } catch (err) {
-    console.warn(chalk.yellow(`   ⚠ 飞书文档创建失败: ${(err as Error).message}`));
+    console.warn(chalk.yellow(`   ⚠ 飞书文档创建/更新失败: ${(err as Error).message}`));
     console.warn(chalk.yellow('   提示：请确认 lark-cli 已登录且有 docx:document scope'));
     return null;
   }

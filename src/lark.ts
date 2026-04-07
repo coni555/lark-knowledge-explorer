@@ -460,3 +460,14 @@ export async function createDoc(title: string, markdown: string, wikiSpace?: str
     return { doc_id: '', doc_url: urlMatch?.[0] ?? '', message: raw.trim() };
   }
 }
+
+export async function updateDoc(docId: string, markdown: string, newTitle?: string): Promise<void> {
+  const args = ['docs', '+update', '--doc', docId, '--mode', 'overwrite', '--markdown', markdown];
+  if (newTitle) args.push('--new-title', newTitle);
+
+  execFileSync('lark-cli', args, {
+    encoding: 'utf-8',
+    timeout: 120000,
+    maxBuffer: 10 * 1024 * 1024,
+  });
+}

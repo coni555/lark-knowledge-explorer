@@ -73,4 +73,7 @@ export interface CacheMeta {
   space_id?: string;
   space_name?: string;
   node_count: number;
+  report_doc_id?: string;
+  report_doc_url?: string;
+  report_date?: string;       // YYYY-MM-DD, used to detect same-day reruns
 }

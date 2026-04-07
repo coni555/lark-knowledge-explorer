@@ -172,7 +172,7 @@ async function runRender(cache: CacheStore) {
   };
 
   printTerminalReport(result);
-  await publishToFeishu(result);
+  await publishToFeishu(result, cache);
 }
 
 // --- Full pipeline (default, backward compatible) ---
