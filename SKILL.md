@@ -46,7 +46,16 @@ You handle the full workflow automatically. The user just says "analyze my knowl
 npx knowledge-explorer --collect-only
 ```
 
-Optional flags: `--query "keyword"`, `--owner me`, `--space <id>`, `--max-pages <n>`.
+Optional flags: `--query "keyword"`, `--owner me`, `--space <id>`, `--folder <node_token>` (requires `--space <id>`), `--max-pages <n>`.
+
+Helper tools:
+
+```bash
+npx knowledge-explorer --list-spaces
+npx knowledge-explorer --list-tree <space_id>
+```
+
+Use `--list-spaces` to find the target `space_id`. Use `--list-tree <space_id>` to inspect that space's folder tree and copy the folder `node_token`, then collect with `--space <space_id> --folder <node_token>`.
 
 Wait for `✓ 收集完成，N 篇文档已缓存` before proceeding.
 
@@ -115,8 +124,10 @@ Also supports staged execution: `--collect-only` → `--analyze-only` → `--ren
 | `--query <keyword>` | Keyword search mode (instead of full scan) |
 | `--owner me\|others\|<name>` | Filter by document owner |
 | `--space <space_id>` | Limit to specific wiki space |
+| `--folder <node_token>` | Limit full scan to a folder subtree (requires `--space`) |
 | `--max-pages <n>` | Max search pages (default: 10) |
 | `--list-spaces` | List all accessible wiki spaces |
+| `--list-tree <space_id>` | Show folder tree for a wiki space |
 
 For full details: `references/cli-reference.md`.
 

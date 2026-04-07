@@ -4,17 +4,17 @@
 
 # Knowledge Explorer
 
-### 飞书知识探索器
+### Feishu Knowledge Base Analyzer
 
 [![npm version](https://img.shields.io/npm/v/lark-knowledge-explorer.svg)](https://www.npmjs.com/package/lark-knowledge-explorer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org/)
 [![lark-cli](https://img.shields.io/badge/lark--cli-required-blue.svg)](https://github.com/larksuite/cli)
 
-Scan your Feishu knowledge base, discover hidden relationships between documents,<br>
-and generate actionable insights — all from a single command.
+Your Feishu docs are scattered notes with no connections between them.<br>
+This tool uses AI to build relationships from scratch and find cross-topic insights you'd never think of.
 
-[Quick Start](#-quick-start) · [Features](#-what-it-discovers) · [Two Modes](#-two-analysis-modes) · [How It Works](#-how-it-works) · [As a Skill](#-use-as-ai-agent-skill) · [Contributing](#-contributing)
+[What Can I Do](#-what-can-i-do) · [Install](#-install) · [What It Discovers](#-what-it-discovers) · [Sample Output](#-sample-output) · [How It Works](#-how-it-works)
 
 </div>
 
@@ -34,76 +34,98 @@ Your Feishu knowledge base grows every day, but the connections between document
 
 Knowledge Explorer fixes this by using AI to **build connections from scratch** — not just find existing links.
 
+---
+
+## 🎯 What Can I Do
+
+After installing the Skill, just tell your AI agent what you want in natural language.
+
+### Scan & Analyze
+
+| You say | AI does |
+|---------|---------|
+| "Analyze my knowledge base" | Scans all wiki spaces, generates a full report |
+| "Analyze docs about product strategy" | Searches by keyword and analyzes matches |
+| "Only look at my own docs" | Filters to docs you own |
+| "Only look at other people's docs" | Excludes your docs, analyzes others' |
+| "Only analyze the XX space" | Scans within a specific wiki space |
+| "Only the YY folder under XX space" | Narrows down to a folder and its subfolders |
+
+These filters **can be freely combined**, e.g. "Analyze my docs in the Product space about user growth".
+
+### Helper Queries
+
+| You say | AI does |
+|---------|---------|
+| "What wiki spaces do I have?" | Lists all accessible spaces with IDs |
+| "Show the folder structure of XX space" | Displays the folder tree so you can pick a scope |
+
+### Supported Document Types
+
+| Type | Status |
+|------|--------|
+| Docs (docx) | Full scan + analysis |
+| Legacy docs (doc) | Full scan + analysis |
+| Sheets / Bases / Slides / Mindnotes | Skipped (no body text) |
+
+---
+
 ## ✨ What It Discovers
 
-| | Type | Example |
+Each analysis produces a **Feishu document report** containing:
+
+| | Discovery | Description |
 |---|---|---|
-| 🏛 | **Hub Documents** | *"Q1 Planning" is cited by 4 docs and semantically linked to 8 more — your knowledge anchor* |
-| 🏝 | **Orphan Documents** | *5 docs have zero connections — consider archiving or linking* |
-| 🌉 | **Bridge Documents** | *"User Research" connects the Product and Marketing clusters* |
-| ⏰ | **Stale Documents** | *"Competitor Analysis" hasn't been updated in 89 days but 3 docs still cite it* |
-| 🔗 | **Topic Clusters** | *AI groups your docs into themes like #UserGrowth, #TechDebt, #CompetitorIntel* |
-| 💡 | **Collision Insights** | *"Competitor Pricing" × "User Interviews" → design a tiered pricing strategy* |
+| 🏛 | **Hub Documents** | Heavily referenced knowledge anchors, e.g. *"Q1 Planning" is cited by 4 docs and semantically linked to 8 more* |
+| 🏝 | **Orphan Documents** | Zero connections to anything — consider archiving or linking |
+| 🌉 | **Bridge Documents** | Connectors across topics, e.g. *"User Research" links the Product and Marketing clusters* |
+| ⏰ | **Stale Documents** | Not updated in months but still heavily cited — time to refresh |
+| 🔗 | **Topic Clusters** | AI groups your docs into themes like #UserGrowth, #TechDebt, #CompetitorIntel |
+| 💡 | **Collision Insights** | Cross-topic document pairs with actionable suggestions for combining them |
 
-**Collision Insights** are the killer feature — they find documents from different clusters that share hidden connections, and suggest how combining them creates new value.
+**Collision Insights** are the killer feature — they don't just say "these two docs are similar", they say "put these together and you can build XX".
 
-## 🚀 Quick Start
+### Reports Also Include
 
-### Prerequisites
+- **Knowledge health advice** — which docs to merge, update, or connect
+- **Action checklist** — checkable to-dos right inside the Feishu document
 
-- [lark-cli](https://github.com/larksuite/cli) installed and logged in
-- Node.js >= 20
+---
 
-### Install
+## 🚀 Install
+
+### As an AI Agent Skill (Recommended)
+
+Works with Claude Code, Codex, and other coding agents. Chat-driven analysis, **zero API config**.
+
+Send this to your AI agent and it will handle the entire setup:
+
+> Help me install Knowledge Explorer (Feishu knowledge base analyzer). Execute in order:
+>
+> 1. Check Node.js >= 20 is installed; if not, tell me to install it manually
+> 2. `npm install -g @larksuite/cli`
+> 3. `npm install -g lark-knowledge-explorer`
+> 4. Run `lark-cli auth login --scope search:docs_wiki:readonly,wiki:node:read,docx:document:readonly,docx:document` — this step requires me to authorize in the browser, wait for me to finish
+> 5. Install the Skill files from the npm global package to your skills directory: source path `$(npm root -g)/lark-knowledge-explorer/` (need SKILL.md and references/)
+>
+> Once done, tell me what I can say to trigger a knowledge base analysis.
+
+After that, just say "analyze my knowledge base" and you're off.
+
+### As a Standalone CLI Tool
+
+If you don't use an AI agent, you can run commands directly. Requires an AI API:
 
 ```bash
-# Via npm (recommended)
+# Install
 npm install -g lark-knowledge-explorer
 
-# Or from source
-git clone https://github.com/coni555/lark-knowledge-explorer.git
-cd knowledge-explorer
-npm install && npm run build
-```
-
-### Run
-
-```bash
-# Option A: Let your AI agent analyze (zero API config)
-npx knowledge-explorer --collect-only
-# → Then ask your AI agent to read .knowledge-cache/ and analyze
-
-# Option B: Fully automated with AI API
+# Configure AI (supports OpenAI, Qwen, DeepSeek, etc.)
 echo "OPENAI_API_KEY=sk-xxx" > .env
 echo "OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1" >> .env
+
+# Run
 npx knowledge-explorer
-```
-
-That's it. Terminal report + Feishu doc auto-generated.
-
-## 🔀 Two Analysis Modes
-
-| | Coding Agent (Path A) | API Pipeline (Path B) |
-|---|---|---|
-| **Setup** | Zero config | Needs `OPENAI_API_KEY` |
-| **How** | `--collect-only` → AI agent analyzes cache → `--render-only` | Single command, fully automated |
-| **Best for** | AI agent users (Claude Code, Codex, etc.) | Batch runs, CI/CD |
-| **Cost** | Your AI agent subscription | API token costs |
-
-### Path A: Coding Agent
-
-```bash
-npx knowledge-explorer --collect-only          # Step 1: Collect docs
-# AI agent reads .knowledge-cache/nodes.json   # Step 2: AI analysis
-npx knowledge-explorer --render-only           # Step 3: Render report
-```
-
-### Path B: API Pipeline
-
-```bash
-npx knowledge-explorer                         # Full scan + AI + output
-npx knowledge-explorer --query "产品规划"       # Keyword search
-npx knowledge-explorer --owner me              # Only my docs
 ```
 
 <details>
@@ -114,11 +136,14 @@ npx knowledge-explorer --owner me              # Only my docs
 | `--collect-only` | Collect docs to cache (no AI needed) |
 | `--analyze-only` | Analyze cached docs (needs API key) |
 | `--render-only` | Render cached results to terminal + Feishu doc |
+| `--analyze-prompt` | Generate analysis prompt for copy-paste to any AI |
 | `--query <keyword>` | Keyword search mode (instead of full scan) |
 | `--owner me\|others\|<name>` | Filter by document owner |
 | `--space <space_id>` | Limit to specific wiki space |
+| `--folder <node_token>` | Limit to a folder subtree (requires `--space`) |
 | `--max-pages <n>` | Max search pages (default: 10) |
-| `--list-spaces` | List all accessible spaces |
+| `--list-spaces` | List all accessible wiki spaces |
+| `--list-tree <space_id>` | Show folder tree of a space (find node tokens for `--folder`) |
 
 **Environment Variables** (auto-loaded from `.env`):
 
@@ -130,86 +155,66 @@ npx knowledge-explorer --owner me              # Only my docs
 
 </details>
 
+---
+
 ## 📊 Sample Output
 
 ```
-🔍 扫描完成：14 篇文档
+🔍 Scan complete: 14 documents
 
-📊 知识健康度
-  🏛 枢纽文档 (9)：MBTI人格与留学路径选择、活动策划方案 等
-  🌉 桥梁文档 (9)：知识探索报告、MBTI人格与留学路径选择 等
-  ⏰ 可能过期 (3)：假期充电站、IP增长项目培训、鹅圈子学院方案
+📊 Knowledge Health
+  🏛 Hub docs (9): MBTI Personality & Study Abroad, Event Planning, etc.
+  🌉 Bridge docs (9): Knowledge Report, MBTI Personality, etc.
+  ⏰ Possibly stale (3): Holiday Study Guide, IP Growth Training, Community Plan
 
-🔗 发现 6 个主题聚类
-  ├ #留学路径适配 (4篇)
-  │   · 知识探索报告 2026-04-05
-  │   · INFP|不同MBTI人格与留学路径选择
+🔗 Found 6 topic clusters
+  ├ #StudyAbroadPaths (4 docs)
+  │   · Knowledge Exploration Report 2026-04-05
+  │   · INFP | MBTI Personality & Study Abroad Paths
   │   · ...
-  ├ #阅读力提升 (4篇)
-  │   · 「原著阅读俱乐部」学习手册
-  │   · 浪前·阅读力工坊-策划案
+  ├ #ReadingSkills (4 docs)
+  │   · Original Reading Club Handbook
+  │   · Reading Workshop Plan
   │   · ...
-  └ #AI阅读工坊 (2篇)
-      · 认知雷达 Prompt 实验室
-      · 《信息过载终结者》
+  └ #AIReadingWorkshop (2 docs)
+      · Cognitive Radar Prompt Lab
+      · "Information Overload Terminator"
 
-💡 碰撞洞察 (Top 5)
-  1.《知识探索报告》×《MBTI情报局活动策划方案》
-     → 将 MBTI-留学路径知识图谱嵌入7天线上活动，生成个性化匹配建议
-     文档A提供结构化的人格-环境匹配知识资产，文档B具备成熟的私域触达路径...
-  2.《认知雷达 Prompt 实验室》×《假期充电站》
-     → 联合发起双周共读行动，用构建式阅读设计 Prompt 任务流...
+💡 Collision Insights (Top 5)
+  1. "Knowledge Report" × "MBTI Event Plan"
+     → Embed the MBTI-study path knowledge graph into a 7-day campaign
+     Doc A provides structured personality-environment matching; Doc B has a proven outreach funnel...
+  2. "Cognitive Radar Prompt Lab" × "Holiday Study Guide"
+     → Launch a biweekly reading sprint with constructive reading prompt workflows...
 
-📄 完整报告已生成 → https://feishu.cn/docx/xxx
+📄 Full report generated → https://feishu.cn/docx/xxx
 ```
+
+Beyond the terminal output, a **full Feishu document** is auto-created with clickable doc links and a checkable action list.
+
+---
 
 ## ⚙️ How It Works
 
 ```
-                    ┌─────────────────────────────────┐
-                    │  Phase 1: Collect                │
-                    │  Traverse wiki spaces + search   │
-                    │  via lark-cli                    │
-                    └──────────────┬──────────────────┘
-                                   ↓
-                    ┌─────────────────────────────────┐
-                    │  Phase 2: Build Graph            │
-                    │  AI summaries → semantic         │
-                    │  clustering → auto-generate edges│
-                    └──────────────┬──────────────────┘
-                                   ↓
-                    ┌─────────────────────────────────┐
-                    │  Phase 3: Generate Insights      │
-                    │  L1 structural → L2 semantic     │
-                    │  → L3 collision                  │
-                    └──────────────┬──────────────────┘
-                                   ↓
-                    ┌─────────────────────────────────┐
-                    │  Phase 4: Output                 │
-                    │  Terminal report + Feishu doc    │
-                    │  (auto-created)                  │
-                    └─────────────────────────────────┘
+  Collect docs       Build graph        Gen insights       Output report
+┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
+│ Traverse  │──→│ AI summary│──→│ Hubs     │──→│ Terminal │
+│ spaces +  │   │ Semantic  │   │ Orphans  │   │ Feishu   │
+│ fetch docs│   │ clustering│   │ Collisons│   │ Checklist│
+└──────────┘   └──────────┘   └──────────┘   └──────────┘
 ```
 
 **Semantic-first architecture**: Instead of finding existing links, the tool uses AI to understand content and build connections from scratch — because most personal knowledge bases have few or no explicit cross-references.
 
-## 🛠 Tech Stack
+### Tech Stack
 
 - **TypeScript** — CLI core
 - **[lark-cli](https://github.com/larksuite/cli)** — Feishu API layer
 - **OpenAI-compatible API** — AI analysis (Qwen, DeepSeek, GPT, etc.)
 - **Pure JSON caching** — no database dependency
 
-## 🤖 Use as AI Agent Skill
-
-Knowledge Explorer ships with a `SKILL.md` that works with any coding AI agent (Claude Code, Codex, etc.). Install it to let your AI agent explore Feishu knowledge bases conversationally:
-
-```bash
-# Example: Claude Code
-cp -r knowledge-explorer ~/.claude/skills/knowledge-explorer
-```
-
-The skill supports both analysis modes — your AI agent can either run the full API pipeline or do the analysis itself using cached documents.
+---
 
 ## 🤝 Contributing
 

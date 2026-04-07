@@ -1,13 +1,12 @@
 // src/lark.ts
-import { execSync, execFileSync } from 'child_process';
+import { execFileSync } from 'child_process';
 
 interface LarkExecOptions {
   timeout?: number;  // ms, default 30000
 }
 
 function larkExec(args: string[], opts: LarkExecOptions = {}): string {
-  const cmd = `lark-cli ${args.join(' ')}`;
-  const result = execSync(cmd, {
+  const result = execFileSync('lark-cli', args, {
     encoding: 'utf-8',
     timeout: opts.timeout ?? 30000,
     maxBuffer: 10 * 1024 * 1024,
@@ -200,7 +199,8 @@ export async function listSpaceNodes(spaceId: string, parentToken?: string): Pro
 }
 
 // Recursively get ALL nodes in a space (tree traversal)
-export async function listAllSpaceNodes(spaceId: string): Promise<WikiNodeInfo[]> {
+// If startNodeToken is provided, only traverse that subtree (folder filtering)
+export async function listAllSpaceNodes(spaceId: string, startNodeToken?: string): Promise<WikiNodeInfo[]> {
   const allNodes: WikiNodeInfo[] = [];
 
   async function traverse(parentToken?: string) {
@@ -213,7 +213,7 @@ export async function listAllSpaceNodes(spaceId: string): Promise<WikiNodeInfo[]
     }
   }
 
-  await traverse('');  // empty string = root level
+  await traverse(startNodeToken ?? '');  // empty string = root level
   return allNodes;
 }
 

@@ -11,10 +11,10 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org/)
 [![lark-cli](https://img.shields.io/badge/lark--cli-required-blue.svg)](https://github.com/larksuite/cli)
 
-扫描飞书知识库，自动发现文档间的隐藏关系，<br>
-生成可行动的碰撞洞察 — 一条命令搞定。
+你的飞书文档是散落的笔记，彼此没有关联。<br>
+这个工具用 AI 从零建立连接，找到你从未想到的文档交叉点。
 
-[快速开始](#-快速开始) · [核心能力](#-核心发现) · [两种模式](#-两种分析模式) · [工作原理](#-工作原理) · [作为 Skill 使用](#-作为-ai-agent-skill) · [参与贡献](#-参与贡献)
+[我能做什么](#-我能做什么) · [安装](#-安装) · [核心发现](#-它会发现什么) · [输出示例](#-输出示例) · [工作原理](#-工作原理)
 
 </div>
 
@@ -23,87 +23,109 @@
 <!-- TODO: 替换为实际 GIF 录屏 -->
 <!-- <p align="center"><img src="docs/demo.gif" width="700" alt="Knowledge Explorer 演示"></p> -->
 
-## 为什么需要这个工具？
+## 为什么需要？
 
 飞书知识库每天都在增长，但文档之间的关联只存在于你的脑子里。
 
-- **没有图谱视图** — 飞书不像 Obsidian 有知识图谱
-- **隐性重复** — 不同团队在不同空间写了类似的内容，彼此不知情
-- **遗漏的连接** — 两篇看似无关的文档碰在一起可能产生全新想法
+- **没有知识图谱** — 飞书不像 Obsidian，没有全局的关系视图
+- **隐性重复** — 不同空间写了类似内容，彼此不知情
+- **遗漏的连接** — 两篇看似无关的文档碰在一起，可能产生全新想法
 - **知识老化** — 重要文档被频繁引用，却长期未更新
 
-Knowledge Explorer 用 AI **从零建立连接** — 而不只是发现已有链接。
+Knowledge Explorer 用 AI **从零建立连接** — 不只是发现已有链接，而是理解内容后创造新关系。
 
-## ✨ 核心发现
+---
 
-| | 类型 | 示例 |
+## 🎯 我能做什么
+
+安装 Skill 后，你只需要用自然语言告诉 AI 你想做什么。
+
+### 扫描与分析
+
+| 你说 | AI 做什么 |
+|------|-----------|
+| "帮我分析一下知识库" | 扫描所有知识空间的全部文档，生成完整报告 |
+| "分析一下产品相关的文档" | 按关键词"产品"搜索文档并分析 |
+| "只看我自己写的文档" | 筛选你名下的文档进行分析 |
+| "只看别人写的文档" | 排除你的文档，只分析他人的 |
+| "只分析 XX 空间" | 限定在某个知识空间内扫描 |
+| "只看 XX 空间下的 YY 文件夹" | 精确到某个文件夹及其子文件夹 |
+
+以上条件**可以自由组合**，比如："帮我分析产品空间里我自己写的文档"。
+
+### 辅助查询
+
+| 你说 | AI 做什么 |
+|------|-----------|
+| "我有哪些知识空间？" | 列出所有可访问的空间名称和 ID |
+| "看看 XX 空间的文件夹结构" | 树形展示空间内的文件夹层级，方便你指定范围 |
+
+### 支持的文档类型
+
+| 类型 | 状态 |
+|------|------|
+| 新版文档 (docx) | 完整扫描+分析 |
+| 旧版文档 (doc) | 完整扫描+分析 |
+| 电子表格 / 多维表格 / 幻灯片 / 思维导图 | 跳过（无正文文本） |
+
+---
+
+## ✨ 它会发现什么
+
+每次分析完成后，你会收到一份**飞书云文档报告**，包含以下发现：
+
+| | 发现 | 说明 |
 |---|---|---|
-| 🏛 | **枢纽文档** | *《Q1 规划》被 4 篇引用、与 8 篇语义关联 — 你的知识锚点* |
-| 🏝 | **孤岛文档** | *5 篇文档与其他文档零关联 — 考虑归档或建立链接* |
-| 🌉 | **桥梁文档** | *《用户调研》连接了产品组和市场组两个主题群* |
-| ⏰ | **过期文档** | *《竞品分析》89 天未更新，仍被 3 篇引用* |
-| 🔗 | **主题聚类** | *AI 自动将文档分组为 #用户增长、#技术债务、#竞品情报 等主题* |
-| 💡 | **碰撞洞察** | *《竞品定价》×《用户访谈》→ 可设计阶梯定价方案* |
+| 🏛 | **枢纽文档** | 被大量引用的知识锚点，例如《Q1 规划》被 4 篇引用、与 8 篇语义关联 |
+| 🏝 | **孤岛文档** | 与其他文档零关联，可能需要归档或建立链接 |
+| 🌉 | **桥梁文档** | 横跨多个主题的连接器，例如《用户调研》同时关联产品组和市场组 |
+| ⏰ | **过期文档** | 长期未更新但仍被频繁引用，提醒你及时维护 |
+| 🔗 | **主题聚类** | AI 自动将文档按主题分组，如 #用户增长、#技术债务、#竞品情报 |
+| 💡 | **碰撞洞察** | 从不同主题群中找到隐藏交叉点，生成具体可行动的组合建议 |
 
-**碰撞洞察**是核心差异化功能 — 找到来自不同主题群的文档，发现它们之间隐藏的交叉点，并生成可行动的组合建议。
+**碰撞洞察**是核心差异化功能 — 它不是在告诉你"这两篇文档相似"，而是在说"把这两篇放在一起看，你可以做出 XX"。
 
-## 🚀 快速开始
+### 报告还包含
 
-### 前置条件
+- **知识健康建议** — 哪些文档该合并、该更新、该关联
+- **行动清单** — 可勾选的待办事项，直接在飞书文档里跟进
 
-- [lark-cli](https://github.com/larksuite/cli) 已安装并登录
-- Node.js >= 20
+---
 
-### 安装
+## 🚀 安装
+
+### 作为 AI Agent Skill（推荐）
+
+适用于 Claude Code、Codex 等 Coding Agent 用户。安装后用对话即可触发分析，**零 API 配置**。
+
+把下面这段话发给你的 AI Agent，它会自动完成全部安装：
+
+> 帮我安装飞书知识探索器（Knowledge Explorer）。按顺序执行：
+>
+> 1. 检查 Node.js >= 20，没有就提示我手动安装
+> 2. `npm install -g @larksuite/cli`
+> 3. `npm install -g lark-knowledge-explorer`
+> 4. 运行 `lark-cli auth login --scope search:docs_wiki:readonly,wiki:node:read,docx:document:readonly,docx:document` —— 这一步需要我在浏览器里授权，等我完成再继续
+> 5. 把 npm 全局包里的 Skill 文件安装到你的 skills 目录：源路径 `$(npm root -g)/lark-knowledge-explorer/`（需要 SKILL.md 和 references/ 两个）
+>
+> 装完后告诉我可以说什么来触发知识库分析。
+
+装完之后，直接对 AI 说"帮我分析一下知识库"就行了。
+
+### 作为独立 CLI 工具
+
+如果你不用 AI Agent，也可以直接跑命令行。需要配置 AI API：
 
 ```bash
-# 通过 npm 安装（推荐）
+# 安装
 npm install -g lark-knowledge-explorer
 
-# 或从源码构建
-git clone https://github.com/coni555/lark-knowledge-explorer.git
-cd knowledge-explorer
-npm install && npm run build
-```
-
-### 运行
-
-```bash
-# 方式 A：让 AI Agent 直接分析（零 API 配置）
-npx knowledge-explorer --collect-only
-# → 然后让 AI Agent 读取 .knowledge-cache/ 进行分析
-
-# 方式 B：全自动 API 模式
+# 配置 AI（支持 OpenAI、通义千问、DeepSeek 等兼容接口）
 echo "OPENAI_API_KEY=sk-xxx" > .env
 echo "OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1" >> .env
+
+# 运行
 npx knowledge-explorer
-```
-
-搞定。终端彩色报告 + 飞书文档自动生成。
-
-## 🔀 两种分析模式
-
-| | Coding Agent (Path A) | API 管线 (Path B) |
-|---|---|---|
-| **配置** | 零配置 | 需要 `OPENAI_API_KEY` |
-| **方式** | `--collect-only` → AI Agent 分析缓存 → `--render-only` | 一条命令全自动 |
-| **适合** | AI Agent 用户（Claude Code、Codex 等） | 批量运行、CI/CD |
-| **成本** | AI Agent 订阅费 | API token 费用 |
-
-### Path A：Coding Agent
-
-```bash
-npx knowledge-explorer --collect-only          # 第 1 步：收集文档
-# AI Agent 读取 .knowledge-cache/nodes.json   # 第 2 步：AI 分析
-npx knowledge-explorer --render-only           # 第 3 步：渲染报告
-```
-
-### Path B：API 管线
-
-```bash
-npx knowledge-explorer                         # 全量扫描 + AI 分析 + 输出
-npx knowledge-explorer --query "产品规划"       # 关键词搜索
-npx knowledge-explorer --owner me              # 只看我的文档
 ```
 
 <details>
@@ -114,11 +136,14 @@ npx knowledge-explorer --owner me              # 只看我的文档
 | `--collect-only` | 仅收集文档到缓存（不需要 AI） |
 | `--analyze-only` | 仅分析缓存文档（需要 API key） |
 | `--render-only` | 仅从缓存读取结果并输出报告 |
+| `--analyze-prompt` | 生成分析 prompt，可复制给任意 AI 使用 |
 | `--query <关键词>` | 关键词搜索模式（替代全量扫描） |
 | `--owner me\|others\|<名字>` | 按文档所有者过滤 |
 | `--space <space_id>` | 限定某个知识空间 |
+| `--folder <node_token>` | 限定某个文件夹子树（需配合 `--space`） |
 | `--max-pages <n>` | 搜索最大页数（默认 10） |
 | `--list-spaces` | 列出所有可访问的知识空间 |
+| `--list-tree <space_id>` | 树形展示空间的文件夹结构 |
 
 **环境变量**（从 `.env` 自动加载）：
 
@@ -129,6 +154,8 @@ npx knowledge-explorer --owner me              # 只看我的文档
 | `AI_MODEL` | 模型名称 | `gpt-4o-mini` |
 
 </details>
+
+---
 
 ## 📊 输出示例
 
@@ -163,53 +190,31 @@ npx knowledge-explorer --owner me              # 只看我的文档
 📄 完整报告已生成 → https://feishu.cn/docx/xxx
 ```
 
+除了终端输出，还会**自动在飞书创建一份完整报告文档**，包含可点击的文档链接和可勾选的行动清单。
+
+---
+
 ## ⚙️ 工作原理
 
 ```
-                    ┌─────────────────────────────────┐
-                    │  阶段 1：收集                     │
-                    │  遍历知识空间 + 全局搜索            │
-                    │  通过 lark-cli                    │
-                    └──────────────┬──────────────────┘
-                                   ↓
-                    ┌─────────────────────────────────┐
-                    │  阶段 2：建图                     │
-                    │  AI 摘要 → 语义聚类               │
-                    │  → 自动生成关系边                  │
-                    └──────────────┬──────────────────┘
-                                   ↓
-                    ┌─────────────────────────────────┐
-                    │  阶段 3：生成洞察                  │
-                    │  L1 结构洞察 → L2 语义洞察         │
-                    │  → L3 碰撞洞察                    │
-                    └──────────────┬──────────────────┘
-                                   ↓
-                    ┌─────────────────────────────────┐
-                    │  阶段 4：输出                     │
-                    │  终端报告 + 飞书文档               │
-                    │  （自动创建）                      │
-                    └─────────────────────────────────┘
+  收集文档          建立图谱          生成洞察          输出报告
+┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
+│ 遍历空间  │──→│ AI 摘要  │──→│ 枢纽/孤岛│──→│ 终端报告 │
+│ 全局搜索  │   │ 语义聚类 │   │ 桥梁/过期│   │ 飞书文档 │
+│ 抓取正文  │   │ 自动连边 │   │ 碰撞洞察 │   │ 行动清单 │
+└──────────┘   └──────────┘   └──────────┘   └──────────┘
 ```
 
-**语义优先架构**：不是去找文档间已有的链接，而是用 AI 理解内容、从零建立连接 — 因为大多数个人知识库几乎没有显式的交叉引用。
+**语义优先**：不是去找文档间已有的链接，而是用 AI 理解内容后从零建立连接 — 因为大多数个人知识库几乎没有显式的交叉引用。
 
-## 🛠 技术栈
+### 技术栈
 
 - **TypeScript** — CLI 核心
 - **[lark-cli](https://github.com/larksuite/cli)** — 飞书 API 层
 - **OpenAI 兼容 API** — AI 分析（通义千问、DeepSeek、GPT 等）
 - **纯 JSON 缓存** — 无数据库依赖
 
-## 🤖 作为 AI Agent Skill
-
-Knowledge Explorer 自带 `SKILL.md`，支持任何 Coding AI Agent（Claude Code、Codex 等）。安装后可以用 AI 对话式探索飞书知识库：
-
-```bash
-# 示例：Claude Code
-cp -r knowledge-explorer ~/.claude/skills/knowledge-explorer
-```
-
-Skill 支持两种模式 — AI Agent 可以运行完整 API 管线，也可以直接分析缓存文档。
+---
 
 ## 🤝 参与贡献
 

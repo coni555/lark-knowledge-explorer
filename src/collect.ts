@@ -10,6 +10,7 @@ export interface CollectOptions {
   query?: string;         // keyword-search: search term
   maxPages?: number;      // keyword-search: max pages
   owner?: 'me' | 'others' | string;  // filter by owner: 'me', 'others', or specific name
+  folder?: string;        // full-scan: limit to a subtree by node_token (folder)
 }
 
 export interface CollectResult {
@@ -51,7 +52,7 @@ function resolveOwnerFilter(owner?: string): { myOpenId?: string; filterFn: (own
 
 // --- Full Scan: all wiki spaces + global search ---
 
-async function collectFullScan(cache: CacheStore, limitSpaceId?: string, ownerOpt?: string): Promise<CollectResult> {
+async function collectFullScan(cache: CacheStore, limitSpaceId?: string, ownerOpt?: string, folderToken?: string): Promise<CollectResult> {
   const cachedNodes = await cache.readNodes();
   const cachedMap = new Map(cachedNodes.map(n => [n.id, n]));
   const allNodes: KnowledgeNode[] = [];
@@ -60,6 +61,9 @@ async function collectFullScan(cache: CacheStore, limitSpaceId?: string, ownerOp
   const { myOpenId, filterFn } = resolveOwnerFilter(ownerOpt);
 
   // Part 1: Scan wiki spaces
+  if (folderToken) {
+    console.log(chalk.blue(`📂 文件夹模式: 仅扫描节点 ${folderToken} 下的子树`));
+  }
   console.log(chalk.blue('📡 正在扫描知识空间...'));
   let spaces: Array<{ space_id: string; name: string }> = [];
 
@@ -77,7 +81,7 @@ async function collectFullScan(cache: CacheStore, limitSpaceId?: string, ownerOp
   for (const space of spaces) {
     console.log(chalk.blue(`   🌳 ${space.name}...`));
     try {
-      const wikiNodes = await listAllSpaceNodes(space.space_id);
+      const wikiNodes = await listAllSpaceNodes(space.space_id, folderToken);
       let docNodes = wikiNodes.filter(n => n.obj_type === 'docx' || n.obj_type === 'doc');
       // Owner filter for wiki nodes (uses open_id)
       if (ownerOpt) {
@@ -198,11 +202,25 @@ async function collectFullScan(cache: CacheStore, limitSpaceId?: string, ownerOp
 
 // --- Keyword Search Mode ---
 
-async function collectFromSearch(cache: CacheStore, query: string, maxPages?: number): Promise<CollectResult> {
+async function collectFromSearch(cache: CacheStore, query: string, maxPages?: number, ownerOpt?: string, limitSpaceId?: string, folderToken?: string): Promise<CollectResult> {
   console.log(chalk.blue(`📡 正在搜索飞书文档: "${query}"...`));
 
   const searchResults = await searchDocs(query, maxPages ?? 10);
   console.log(chalk.blue(`   找到 ${searchResults.length} 篇文档`));
+
+  const { filterFn } = resolveOwnerFilter(ownerOpt);
+
+  // If space/folder specified, build a set of allowed doc tokens
+  let allowedTokens: Set<string> | null = null;
+  if (limitSpaceId) {
+    console.log(chalk.blue(`   🔍 限定空间 ${limitSpaceId}${folderToken ? ` / 文件夹 ${folderToken}` : ''}`));
+    try {
+      const spaceNodes = await listAllSpaceNodes(limitSpaceId, folderToken);
+      allowedTokens = new Set(spaceNodes.map(n => n.obj_token));
+    } catch (err) {
+      console.warn(chalk.yellow(`   ⚠ 空间节点获取失败: ${(err as Error).message}`));
+    }
+  }
 
   const cachedNodes = await cache.readNodes();
   const cachedMap = new Map(cachedNodes.map(n => [n.id, n]));
@@ -211,9 +229,13 @@ async function collectFromSearch(cache: CacheStore, query: string, maxPages?: nu
   const uniqueResults = searchResults.filter(item => {
     if (seen.has(item.doc_id)) return false;
     seen.add(item.doc_id);
+    // Owner filter
+    if (ownerOpt && !filterFn(item.owner_name, item.owner_id)) return false;
+    // Space/folder filter
+    if (allowedTokens && !allowedTokens.has(item.doc_id)) return false;
     return true;
   });
-  console.log(chalk.blue(`   去重后 ${uniqueResults.length} 篇`));
+  console.log(chalk.blue(`   过滤去重后 ${uniqueResults.length} 篇`));
 
   const nodes: KnowledgeNode[] = [];
   let fetchCount = 0;
@@ -284,7 +306,7 @@ async function collectFromSearch(cache: CacheStore, query: string, maxPages?: nu
 export async function collectDocuments(cache: CacheStore, opts: CollectOptions): Promise<CollectResult> {
   if (opts.mode === 'keyword-search') {
     if (!opts.query) throw new Error('keyword-search mode requires a query');
-    return collectFromSearch(cache, opts.query, opts.maxPages);
+    return collectFromSearch(cache, opts.query, opts.maxPages, opts.owner, opts.spaceId, opts.folder);
   }
-  return collectFullScan(cache, opts.spaceId, opts.owner);
+  return collectFullScan(cache, opts.spaceId, opts.owner, opts.folder);
 }

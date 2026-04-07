@@ -15,7 +15,7 @@ import { buildGraph } from './graph.js';
 import { computeStructuralInsights, computeSemanticInsights, computeCollisionInsights } from './insights.js';
 import { printTerminalReport, publishToFeishu } from './output.js';
 import { initAIFromEnv, isAIConfigured } from './ai.js';
-import { listSpaces } from './lark.js';
+import { listSpaces, listAllSpaceNodes } from './lark.js';
 import type { ExploreResult } from './types.js';
 import chalk from 'chalk';
 
@@ -27,6 +27,7 @@ async function runCollect(cache: CacheStore, opts: {
   spaceId?: string;
   maxPages?: number;
   owner?: string;
+  folder?: string;
 }) {
   const collectResult = await collectDocuments(cache, {
     mode: opts.mode,
@@ -34,6 +35,7 @@ async function runCollect(cache: CacheStore, opts: {
     spaceId: opts.spaceId,
     maxPages: opts.maxPages,
     owner: opts.owner,
+    folder: opts.folder,
   });
 
   const { nodes } = collectResult;
@@ -94,8 +96,12 @@ async function runAnalyze(cache: CacheStore) {
     process.exit(1);
   }
 
-  // Init AI
+  // Init AI — hard-fail if no key configured
   initAIFromEnv();
+  if (!isAIConfigured()) {
+    console.error(chalk.red('❌ --analyze-only 需要 AI API key。请在 .env 中配置 OPENAI_API_KEY 或使用 Path A（Coding Agent）模式。'));
+    process.exit(1);
+  }
 
   // Phase 2: Build Graph
   const { edges, clusters } = await buildGraph(nodes, cache);
@@ -171,6 +177,7 @@ async function exploreFull(cache: CacheStore, opts: {
   spaceId?: string;
   maxPages?: number;
   owner?: string;
+  folder?: string;
 }) {
   // Init AI — if no key, gracefully degrade to collect-only + guidance
   initAIFromEnv();
@@ -285,6 +292,60 @@ ${docList}
     console.error(chalk.red(`\n❌ 错误: ${err.message}`));
     process.exit(1);
   });
+// --list-tree <spaceId>: show folder tree of a space
+} else if (args.includes('--list-tree')) {
+  const idx = args.indexOf('--list-tree');
+  const targetSpaceId = args[idx + 1];
+  if (!targetSpaceId) {
+    console.error(chalk.red('用法: knowledge-explorer --list-tree <space_id>'));
+    process.exit(1);
+  }
+  (async () => {
+    const nodes = await listAllSpaceNodes(targetSpaceId);
+    if (nodes.length === 0) {
+      console.log('该空间下没有节点。');
+      return;
+    }
+
+    // Build parent→children map for tree display
+    const childrenMap = new Map<string, typeof nodes>();
+    const rootNodes: typeof nodes = [];
+    for (const n of nodes) {
+      if (!n.parent_node_token) {
+        rootNodes.push(n);
+      } else {
+        const siblings = childrenMap.get(n.parent_node_token) ?? [];
+        siblings.push(n);
+        childrenMap.set(n.parent_node_token, siblings);
+      }
+    }
+
+    const typeIcons: Record<string, string> = {
+      docx: '📄', doc: '📄', sheet: '📊', bitable: '📋',
+      slides: '📽️', mindnote: '🧠', file: '📎',
+    };
+
+    function printTree(nodeList: typeof nodes, prefix: string) {
+      for (let i = 0; i < nodeList.length; i++) {
+        const n = nodeList[i];
+        const isLast = i === nodeList.length - 1;
+        const connector = isLast ? '└── ' : '├── ';
+        const icon = typeIcons[n.obj_type] ?? (n.has_child ? '📁' : '📄');
+        console.log(`${prefix}${connector}${icon} ${n.title}  ${chalk.gray(n.node_token)}`);
+        const children = childrenMap.get(n.node_token);
+        if (children) {
+          printTree(children, prefix + (isLast ? '    ' : '│   '));
+        }
+      }
+    }
+
+    console.log(`\n知识空间节点树 (共 ${nodes.length} 个节点):\n`);
+    printTree(rootNodes, '');
+    console.log(chalk.gray('\n提示: 使用 --folder <node_token> 可只探索某个子树'));
+  })().catch(err => {
+    console.error(chalk.red(`\n❌ 错误: ${err.message}`));
+    process.exit(1);
+  });
 } else {
   // Parse flags
   const collectOnly = args.includes('--collect-only');
@@ -295,14 +356,16 @@ ${docList}
   const spaceIdx = args.indexOf('--space');
   const maxPagesIdx = args.indexOf('--max-pages');
   const ownerIdx = args.indexOf('--owner');
+  const folderIdx = args.indexOf('--folder');
 
-  const flagValues = new Set([queryIdx + 1, spaceIdx + 1, maxPagesIdx + 1, ownerIdx + 1]);
+  const flagValues = new Set([queryIdx + 1, spaceIdx + 1, maxPagesIdx + 1, ownerIdx + 1, folderIdx + 1]);
   const bareArg = args.find((a, i) => !a.startsWith('-') && !flagValues.has(i));
 
   const query = queryIdx !== -1 ? args[queryIdx + 1] : bareArg;
   const spaceId = spaceIdx !== -1 ? args[spaceIdx + 1] : undefined;
   const maxPages = maxPagesIdx !== -1 ? parseInt(args[maxPagesIdx + 1], 10) : undefined;
   const owner = ownerIdx !== -1 ? args[ownerIdx + 1] : undefined;
+  const folder = folderIdx !== -1 ? args[folderIdx + 1] : undefined;
   const mode = query ? 'keyword-search' as const : 'full-scan' as const;
 
   const cacheDir = join(process.cwd(), '.knowledge-cache');
@@ -312,14 +375,14 @@ ${docList}
     console.log(chalk.bold.cyan('\n🔍 Knowledge Explorer — 飞书知识探索器\n'));
 
     if (collectOnly) {
-      await runCollect(cache, { mode, query, spaceId, maxPages, owner });
+      await runCollect(cache, { mode, query, spaceId, maxPages, owner, folder });
     } else if (analyzeOnly) {
       await runAnalyze(cache);
     } else if (renderOnly) {
       await runRender(cache);
     } else {
       // Default: full pipeline
-      await exploreFull(cache, { mode, query, spaceId, maxPages, owner });
+      await exploreFull(cache, { mode, query, spaceId, maxPages, owner, folder });
     }
   };
 
