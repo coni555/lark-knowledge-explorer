@@ -29,6 +29,8 @@ async function runCollect(cache: CacheStore, opts: {
   owner?: string;
   folder?: string;
   driveFolder?: string;
+  includeMinutes?: boolean;
+  minutesDays?: number;
 }) {
   const collectResult = await collectDocuments(cache, {
     mode: opts.mode,
@@ -38,6 +40,8 @@ async function runCollect(cache: CacheStore, opts: {
     owner: opts.owner,
     folder: opts.folder,
     driveFolder: opts.driveFolder,
+    includeMinutes: opts.includeMinutes,
+    minutesDays: opts.minutesDays,
   });
 
   const { nodes } = collectResult;
@@ -181,6 +185,8 @@ async function exploreFull(cache: CacheStore, opts: {
   owner?: string;
   folder?: string;
   driveFolder?: string;
+  includeMinutes?: boolean;
+  minutesDays?: number;
 }) {
   // Init AI — if no key, gracefully degrade to collect-only + guidance
   initAIFromEnv();
@@ -419,8 +425,9 @@ ${docList}
   const ownerIdx = args.indexOf('--owner');
   const folderIdx = args.indexOf('--folder');
   const driveIdx = args.indexOf('--drive');
+  const minutesDaysIdx = args.indexOf('--minutes-days');
 
-  const flagValues = new Set([queryIdx + 1, spaceIdx + 1, maxPagesIdx + 1, ownerIdx + 1, folderIdx + 1, driveIdx + 1]);
+  const flagValues = new Set([queryIdx + 1, spaceIdx + 1, maxPagesIdx + 1, ownerIdx + 1, folderIdx + 1, driveIdx + 1, minutesDaysIdx + 1]);
   const bareArg = args.find((a, i) => !a.startsWith('-') && !flagValues.has(i));
 
   const query = queryIdx !== -1 ? args[queryIdx + 1] : bareArg;
@@ -444,6 +451,10 @@ ${docList}
     process.exit(1);
   }
 
+  // --minutes: also collect meeting minutes
+  const includeMinutes = args.includes('--minutes');
+  const minutesDays = minutesDaysIdx !== -1 ? parseInt(args[minutesDaysIdx + 1], 10) : undefined;
+
   const mode = isDrive ? 'drive-scan' as const : query ? 'keyword-search' as const : 'full-scan' as const;
 
   const cacheDir = join(process.cwd(), '.knowledge-cache');
@@ -453,14 +464,14 @@ ${docList}
     console.log(chalk.bold.cyan('\n🔍 Knowledge Explorer — 飞书知识探索器\n'));
 
     if (collectOnly) {
-      await runCollect(cache, { mode, query, spaceId, maxPages, owner, folder, driveFolder });
+      await runCollect(cache, { mode, query, spaceId, maxPages, owner, folder, driveFolder, includeMinutes, minutesDays });
     } else if (analyzeOnly) {
       await runAnalyze(cache);
     } else if (renderOnly) {
       await runRender(cache);
     } else {
       // Default: full pipeline
-      await exploreFull(cache, { mode, query, spaceId, maxPages, owner, folder, driveFolder });
+      await exploreFull(cache, { mode, query, spaceId, maxPages, owner, folder, driveFolder, includeMinutes, minutesDays });
     }
   };
 

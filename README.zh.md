@@ -148,6 +148,8 @@ npx knowledge-explorer
 | `--list-tree <space_id>` | 树形展示空间的文件夹结构 |
 | `--drive [folder_token]` | 扫描飞书云盘文件夹（默认根目录） |
 | `--list-drive [folder_token]` | 树形展示云盘文件夹结构 |
+| `--minutes` | 同时收集会议纪要（可与任何模式组合） |
+| `--minutes-days <n>` | 搜索会议的时间范围，天数（默认 30） |
 
 **环境变量**（从 `.env` 自动加载）：
 

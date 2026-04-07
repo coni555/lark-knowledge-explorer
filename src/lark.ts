@@ -312,6 +312,78 @@ export function listAllDriveFiles(folderToken: string): DriveFileInfo[] {
   return allFiles;
 }
 
+// --- Meeting Minutes ---
+
+export interface MeetingInfo {
+  id: string;
+  topic: string;
+  description: string;
+}
+
+interface RawVcSearchResponse {
+  ok: boolean;
+  data: {
+    has_more: boolean;
+    items: Array<{
+      id: string;
+      display_info: string;
+      meta_data: {
+        description: string;
+      };
+    }>;
+    page_token?: string;
+  };
+}
+
+export function searchMeetings(startTime: string, endTime: string, query?: string): MeetingInfo[] {
+  const args = ['vc', '+search', '--start', startTime, '--end', endTime, '--format', 'json'];
+  if (query) args.push('--query', query);
+  const raw = larkExec(args, { timeout: 30000 });
+  const parsed = JSON.parse(raw) as RawVcSearchResponse;
+  return (parsed.data?.items ?? []).map(item => {
+    // Extract topic from display_info (first line)
+    const topic = item.display_info?.split('\n')[0] ?? '';
+    return {
+      id: item.id,
+      topic,
+      description: item.meta_data?.description ?? '',
+    };
+  });
+}
+
+interface RawVcNotesResponse {
+  ok: boolean;
+  data: {
+    notes: Array<{
+      meeting_id: string;
+      note_doc_token?: string;
+      verbatim_doc_token?: string;
+    }>;
+  };
+}
+
+export function getMeetingNoteTokens(meetingId: string): { noteToken?: string; verbatimToken?: string } {
+  try {
+    const args = ['vc', '+notes', '--meeting-ids', meetingId, '--format', 'json'];
+    // Suppress stderr to avoid lark-cli diagnostic noise for meetings without notes
+    const raw = execFileSync('lark-cli', args, {
+      encoding: 'utf-8',
+      timeout: 30000,
+      maxBuffer: 10 * 1024 * 1024,
+      stdio: ['pipe', 'pipe', 'ignore'],
+    });
+    const parsed = JSON.parse(raw) as RawVcNotesResponse;
+    if (!parsed.ok) return {};
+    const note = parsed.data?.notes?.[0];
+    return {
+      noteToken: note?.note_doc_token,
+      verbatimToken: note?.verbatim_doc_token,
+    };
+  } catch {
+    return {};
+  }
+}
+
 // --- Wiki Node Resolution ---
 
 interface WikiNodeResult {

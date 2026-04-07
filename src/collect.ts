@@ -1,5 +1,5 @@
 // src/collect.ts
-import { searchDocs, listSpaces, listAllSpaceNodes, fetchDocContent, resolveWikiNode, getCurrentUser, getRootFolderToken, listAllDriveFiles } from './lark.js';
+import { searchDocs, listSpaces, listAllSpaceNodes, fetchDocContent, resolveWikiNode, getCurrentUser, getRootFolderToken, listAllDriveFiles, searchMeetings, getMeetingNoteTokens } from './lark.js';
 import { CacheStore } from './cache.js';
 import type { KnowledgeNode } from './types.js';
 import chalk from 'chalk';
@@ -12,6 +12,8 @@ export interface CollectOptions {
   owner?: 'me' | 'others' | string;  // filter by owner: 'me', 'others', or specific name
   folder?: string;        // full-scan: limit to a subtree by node_token (folder)
   driveFolder?: string;   // drive-scan: folder token (default: root)
+  includeMinutes?: boolean;  // also collect meeting minutes
+  minutesDays?: number;      // how far back to search meetings (default: 30)
 }
 
 export interface CollectResult {
@@ -49,6 +51,79 @@ function resolveOwnerFilter(owner?: string): { myOpenId?: string; filterFn: (own
   return {
     filterFn: (ownerName) => ownerName === owner,
   };
+}
+
+// --- Search Supplement: discover shared/personal docs via global search ---
+
+async function supplementWithSearch(
+  allNodes: KnowledgeNode[],
+  seenIds: Set<string>,
+  cachedMap: Map<string, KnowledgeNode>,
+  ownerOpt?: string,
+  maxSearchPages = 25,
+): Promise<{ supplementCount: number; fetchCount: number }> {
+  const { filterFn } = ownerOpt ? resolveOwnerFilter(ownerOpt) : { filterFn: () => true };
+
+  console.log(chalk.blue('🔍 正在全局搜索补充共享/个人文档...'));
+  let supplementCount = 0;
+  let fetchCount = 0;
+
+  try {
+    const searchResults = await searchDocs('', maxSearchPages);
+
+    for (const item of searchResults) {
+      if (seenIds.has(item.doc_id)) continue;
+
+      const supportedTypes = ['DOC', 'DOCX'];
+      if (!supportedTypes.includes(item.type)) continue;
+
+      if (ownerOpt && !filterFn(item.owner_name, item.owner_id)) continue;
+
+      seenIds.add(item.doc_id);
+
+      // Check cache
+      const existing = cachedMap.get(item.doc_id);
+      if (existing?.fetched_at && item.edit_time_iso) {
+        if (new Date(existing.fetched_at) >= new Date(item.edit_time_iso)) {
+          allNodes.push(existing);
+          supplementCount++;
+          continue;
+        }
+      }
+
+      try {
+        const content = await fetchDocContent(item.doc_id);
+        allNodes.push({
+          id: item.doc_id,
+          type: 'doc',
+          title: content.title || item.title,
+          space: '',
+          owner: item.owner_name,
+          url: item.url,
+          updated_at: item.edit_time_iso ?? new Date().toISOString(),
+          summary: '',
+          keywords: [],
+          word_count: content.markdown.length,
+          fetched_at: new Date().toISOString(),
+          content: content.markdown,
+        });
+        supplementCount++;
+        fetchCount++;
+      } catch {
+        // skip silently
+      }
+    }
+
+    if (supplementCount > 0) {
+      console.log(chalk.gray(`   补充了 ${supplementCount} 篇共享/个人文档`));
+    } else {
+      console.log(chalk.gray('   无额外文档'));
+    }
+  } catch (err) {
+    console.warn(chalk.yellow(`   ⚠ 全局搜索失败: ${(err as Error).message}`));
+  }
+
+  return { supplementCount, fetchCount };
 }
 
 // --- Full Scan: all wiki spaces + global search ---
@@ -133,65 +208,9 @@ async function collectFullScan(cache: CacheStore, limitSpaceId?: string, ownerOp
 
   if (fetchCount > 0) console.log('');
 
-  // Part 2: Global search to catch non-wiki docs (personal docs, shared docs)
-  // Use a broad search — empty query or common terms
-  console.log(chalk.blue('🔍 正在全局搜索补充非空间文档...'));
-  try {
-    const searchResults = await searchDocs('', 10);
-    let supplementCount = 0;
-
-    for (const item of searchResults) {
-      if (seenIds.has(item.doc_id)) continue;
-
-      const supportedTypes = ['DOC', 'DOCX'];
-      if (!supportedTypes.includes(item.type)) continue;
-
-      // Owner filter for search results (uses owner_name and owner_id)
-      if (ownerOpt && !filterFn(item.owner_name, item.owner_id)) continue;
-
-      seenIds.add(item.doc_id);
-
-      // Check cache
-      const existing = cachedMap.get(item.doc_id);
-      if (existing?.fetched_at && item.edit_time_iso) {
-        if (new Date(existing.fetched_at) >= new Date(item.edit_time_iso)) {
-          allNodes.push(existing);
-          supplementCount++;
-          continue;
-        }
-      }
-
-      try {
-        const content = await fetchDocContent(item.doc_id);
-        allNodes.push({
-          id: item.doc_id,
-          type: 'doc',
-          title: content.title || item.title,
-          space: '',
-          owner: item.owner_name,
-          url: item.url,
-          updated_at: item.edit_time_iso ?? new Date().toISOString(),
-          summary: '',
-          keywords: [],
-          word_count: content.markdown.length,
-          fetched_at: new Date().toISOString(),
-          content: content.markdown,
-        });
-        supplementCount++;
-        fetchCount++;
-      } catch {
-        // skip silently
-      }
-    }
-
-    if (supplementCount > 0) {
-      console.log(chalk.gray(`   补充了 ${supplementCount} 篇非空间文档`));
-    } else {
-      console.log(chalk.gray('   无额外文档'));
-    }
-  } catch (err) {
-    console.warn(chalk.yellow(`   ⚠ 全局搜索失败: ${(err as Error).message}`));
-  }
+  // Part 2: Global search to catch shared/personal docs not in wiki spaces
+  const supplement = await supplementWithSearch(allNodes, seenIds, cachedMap, ownerOpt);
+  fetchCount += supplement.fetchCount;
 
   console.log(chalk.green(`✓ 共收集 ${allNodes.length} 篇文档（新抓取 ${fetchCount} 篇）`));
   await cache.writeNodes(allNodes);
@@ -378,20 +397,122 @@ async function collectFromDrive(cache: CacheStore, folderToken?: string, ownerOp
   }
 
   if (fetchCount > 0) console.log('');
+
+  // Part 2: Global search to catch shared docs not in Drive folder tree
+  const seenIds = new Set(allNodes.map(n => n.id));
+  const supplement = await supplementWithSearch(allNodes, seenIds, cachedMap, ownerOpt);
+  fetchCount += supplement.fetchCount;
+
   console.log(chalk.green(`✓ 共收集 ${allNodes.length} 篇文档（新抓取 ${fetchCount} 篇）`));
   await cache.writeNodes(allNodes);
   return { nodes: allNodes };
 }
 
+// --- Meeting Minutes Collection ---
+
+async function collectMinutes(
+  seenIds: Set<string>,
+  cachedMap: Map<string, KnowledgeNode>,
+  opts: { query?: string; days?: number },
+): Promise<KnowledgeNode[]> {
+  const days = opts.days ?? 30;
+  const endDate = new Date();
+  const startDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000);
+  const startTime = startDate.toISOString().split('T')[0];
+  const endTime = endDate.toISOString().split('T')[0];
+
+  console.log(chalk.blue(`📹 正在搜索最近 ${days} 天的会议纪要...`));
+
+  let meetings;
+  try {
+    meetings = searchMeetings(startTime, endTime, opts.query);
+  } catch (err) {
+    console.warn(chalk.yellow(`   ⚠ 会议搜索失败: ${(err as Error).message}`));
+    console.warn(chalk.yellow('   提示: 确认 lark-cli 有 vc:meeting:readonly 权限'));
+    return [];
+  }
+
+  console.log(chalk.blue(`   找到 ${meetings.length} 场会议`));
+
+  const nodes: KnowledgeNode[] = [];
+  let fetchCount = 0;
+  let noNotesCount = 0;
+
+  for (const meeting of meetings) {
+    try {
+      const tokens = getMeetingNoteTokens(meeting.id);
+      // Prefer note (AI summary), fallback to verbatim (transcript)
+      const docToken = tokens.noteToken ?? tokens.verbatimToken;
+      if (!docToken) {
+        noNotesCount++;
+        continue;
+      }
+
+      if (seenIds.has(docToken)) continue;
+      seenIds.add(docToken);
+
+      // Check cache
+      const existing = cachedMap.get(docToken);
+      if (existing?.fetched_at) {
+        nodes.push(existing);
+        continue;
+      }
+
+      const content = await fetchDocContent(docToken);
+      nodes.push({
+        id: docToken,
+        type: 'minutes',
+        title: content.title || meeting.topic,
+        space: '',
+        url: `https://feishu.cn/docx/${docToken}`,
+        updated_at: new Date().toISOString(),
+        summary: '',
+        keywords: [],
+        word_count: content.markdown.length,
+        fetched_at: new Date().toISOString(),
+        content: content.markdown,
+      });
+      fetchCount++;
+      process.stdout.write(chalk.gray(`\r   已抓取 ${fetchCount} 篇纪要...`));
+    } catch {
+      // skip silently — meeting may not have accessible notes
+    }
+  }
+
+  if (fetchCount > 0) console.log('');
+  if (noNotesCount > 0) {
+    console.log(chalk.gray(`   ${noNotesCount} 场会议无纪要，已跳过`));
+  }
+  console.log(chalk.green(`   ✓ 收集 ${nodes.length} 篇会议纪要（新抓取 ${fetchCount} 篇）`));
+  return nodes;
+}
+
 // --- Entry Point ---
 
 export async function collectDocuments(cache: CacheStore, opts: CollectOptions): Promise<CollectResult> {
+  let result: CollectResult;
+
   if (opts.mode === 'drive-scan') {
-    return collectFromDrive(cache, opts.driveFolder, opts.owner);
-  }
-  if (opts.mode === 'keyword-search') {
+    result = await collectFromDrive(cache, opts.driveFolder, opts.owner);
+  } else if (opts.mode === 'keyword-search') {
     if (!opts.query) throw new Error('keyword-search mode requires a query');
-    return collectFromSearch(cache, opts.query, opts.maxPages, opts.owner, opts.spaceId, opts.folder);
+    result = await collectFromSearch(cache, opts.query, opts.maxPages, opts.owner, opts.spaceId, opts.folder);
+  } else {
+    result = await collectFullScan(cache, opts.spaceId, opts.owner, opts.folder);
   }
-  return collectFullScan(cache, opts.spaceId, opts.owner, opts.folder);
+
+  // Optional: append meeting minutes
+  if (opts.includeMinutes) {
+    const cachedNodes = await cache.readNodes();
+    const cachedMap = new Map(cachedNodes.map(n => [n.id, n]));
+    const seenIds = new Set(result.nodes.map(n => n.id));
+    const minutesNodes = await collectMinutes(seenIds, cachedMap, {
+      query: opts.query,
+      days: opts.minutesDays,
+    });
+    result.nodes.push(...minutesNodes);
+    await cache.writeNodes(result.nodes);
+  }
+
+  return result;
 }

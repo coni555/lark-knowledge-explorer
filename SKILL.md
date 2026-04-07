@@ -47,7 +47,7 @@ You handle the full workflow automatically. The user just says "analyze my knowl
 npx knowledge-explorer --collect-only
 ```
 
-Optional flags: `--query "keyword"`, `--owner me`, `--space <id>`, `--folder <node_token>` (requires `--space <id>`), `--drive [folder_token]`, `--max-pages <n>`.
+Optional flags: `--query "keyword"`, `--owner me`, `--space <id>`, `--folder <node_token>` (requires `--space <id>`), `--drive [folder_token]`, `--minutes`, `--minutes-days <n>`, `--max-pages <n>`.
 
 **Source selection:** Use `--space` for wiki spaces, `--drive` for Drive cloud folders. They cannot be combined.
 
@@ -137,6 +137,8 @@ Also supports staged execution: `--collect-only` → `--analyze-only` → `--ren
 | `--list-tree <space_id>` | Show folder tree for a wiki space |
 | `--drive [folder_token]` | Scan Feishu Drive folders (default: root) |
 | `--list-drive [folder_token]` | Show Drive folder tree |
+| `--minutes` | Also collect meeting minutes (combinable with any mode) |
+| `--minutes-days <n>` | How far back to search meetings (default: 30) |
 
 For full details: `references/cli-reference.md`.
 

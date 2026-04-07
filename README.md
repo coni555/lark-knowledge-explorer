@@ -148,6 +148,8 @@ npx knowledge-explorer
 | `--list-tree <space_id>` | Show folder tree of a space (find node tokens for `--folder`) |
 | `--drive [folder_token]` | Scan Feishu Drive instead of wiki spaces (default: root folder) |
 | `--list-drive [folder_token]` | Show Drive folder tree (find tokens for `--drive`) |
+| `--minutes` | Also collect meeting minutes (combinable with any mode) |
+| `--minutes-days <n>` | How far back to search meetings (default: 30) |
 
 **Environment Variables** (auto-loaded from `.env`):
 

@@ -23,6 +23,8 @@ npx knowledge-explorer [options]
 | `--list-spaces` | List all accessible wiki spaces and exit | — |
 | `--list-tree <space_id>` | Show folder tree for a wiki space | — |
 | `--list-drive [folder_token]` | Show Drive folder tree | — |
+| `--minutes` | Also collect meeting minutes | — |
+| `--minutes-days <n>` | How far back to search meetings | 30 |
 
 ## Environment Variables
 
