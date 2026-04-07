@@ -2,7 +2,7 @@
 
 export interface KnowledgeNode {
   id: string;                    // wiki node token or doc token
-  type: 'wiki' | 'doc';
+  type: 'wiki' | 'doc' | 'drive';
   title: string;
   space: string;                 // space name or id
   owner?: string;                // owner name
@@ -68,7 +68,7 @@ export interface ExploreResult {
 export interface CacheMeta {
   version: string;
   scanned_at: string;
-  mode: 'full-scan' | 'keyword-search';
+  mode: 'full-scan' | 'keyword-search' | 'drive-scan';
   query?: string;
   space_id?: string;
   space_name?: string;

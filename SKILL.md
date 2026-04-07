@@ -1,14 +1,15 @@
 ---
 name: knowledge-explorer
 description: >-
-  Feishu/Lark knowledge base analyzer: scans all wiki spaces, discovers hidden
-  document relationships via semantic clustering, and generates collision insights
-  (cross-topic document pairs that spark new ideas). Two modes: Coding Agent
-  (default, zero config — you collect docs, analyze them yourself, then render)
-  and API Pipeline (needs OPENAI_API_KEY, fully automated).
+  Feishu/Lark knowledge base analyzer: scans wiki spaces and Drive folders,
+  discovers hidden document relationships via semantic clustering, and generates
+  collision insights (cross-topic document pairs that spark new ideas). Supports
+  wiki spaces (--space), Drive cloud folders (--drive), and keyword search (--query).
+  Two modes: Coding Agent (default, zero config — you collect docs, analyze them
+  yourself, then render) and API Pipeline (needs OPENAI_API_KEY, fully automated).
   If user mentions 知识图谱, 知识库分析, 文档关系, 碰撞洞察, 孤岛文档, 知识健康,
-  explore my docs, scan my wiki, find document connections, or analyze knowledge base,
-  MUST use this skill.
+  云盘分析, 扫描云盘, scan my drive, explore my docs, scan my wiki, find document
+  connections, or analyze knowledge base, MUST use this skill.
   Do NOT use for: reading/editing a single Feishu doc (use lark-doc),
   querying spreadsheets (use lark-sheets), managing wiki structure (use lark-wiki),
   or operating on Feishu bases (use lark-base).
@@ -46,16 +47,22 @@ You handle the full workflow automatically. The user just says "analyze my knowl
 npx knowledge-explorer --collect-only
 ```
 
-Optional flags: `--query "keyword"`, `--owner me`, `--space <id>`, `--folder <node_token>` (requires `--space <id>`), `--max-pages <n>`.
+Optional flags: `--query "keyword"`, `--owner me`, `--space <id>`, `--folder <node_token>` (requires `--space <id>`), `--drive [folder_token]`, `--max-pages <n>`.
+
+**Source selection:** Use `--space` for wiki spaces, `--drive` for Drive cloud folders. They cannot be combined.
 
 Helper tools:
 
 ```bash
-npx knowledge-explorer --list-spaces
-npx knowledge-explorer --list-tree <space_id>
+npx knowledge-explorer --list-spaces              # wiki spaces
+npx knowledge-explorer --list-tree <space_id>      # wiki folder tree
+npx knowledge-explorer --list-drive                # Drive root folder tree
+npx knowledge-explorer --list-drive <folder_token> # Drive subfolder tree
 ```
 
 Use `--list-spaces` to find the target `space_id`. Use `--list-tree <space_id>` to inspect that space's folder tree and copy the folder `node_token`, then collect with `--space <space_id> --folder <node_token>`.
+
+Use `--list-drive` to browse Drive folders and find the `folder_token`, then collect with `--drive <folder_token>`. Omit the token to scan the entire Drive root.
 
 Wait for `✓ 收集完成，N 篇文档已缓存` before proceeding.
 
@@ -128,6 +135,8 @@ Also supports staged execution: `--collect-only` → `--analyze-only` → `--ren
 | `--max-pages <n>` | Max search pages (default: 10) |
 | `--list-spaces` | List all accessible wiki spaces |
 | `--list-tree <space_id>` | Show folder tree for a wiki space |
+| `--drive [folder_token]` | Scan Feishu Drive folders (default: root) |
+| `--list-drive [folder_token]` | Show Drive folder tree |
 
 For full details: `references/cli-reference.md`.
 
@@ -137,9 +146,11 @@ For full details: `references/cli-reference.md`.
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| `未找到任何文档` | lark-cli not logged in or missing scope | `lark-cli auth login --scope search:docs_wiki:readonly,wiki:node:read,docx:document:readonly,docx:document` |
+| `未找到任何文档` | lark-cli not logged in or missing scope | `lark-cli auth login --scope search:docs_wiki:readonly,wiki:node:read,docx:document:readonly,docx:document,drive:drive:readonly` |
 | `AI not configured` | Missing API key (Path B only) | Check `.env` or switch to Path A |
 | `429 Too Many Requests` | API rate limit | Wait a few minutes, or switch API key |
 | Clusters too few (≤2) | Too few docs or topics too similar | Broaden search (remove `--query`) |
 | Feishu doc creation failed | Missing `docx:document` scope | `lark-cli auth login --scope docx:document` |
 | `nodes.json` has no content | Ran default mode, not `--collect-only` | Re-run with `--collect-only` (preserves content for Path A) |
+| `--drive` finds 0 docs | Folder contains only shortcuts to non-doc types | Use `--list-drive` to check file types; shortcuts to docx/doc are auto-resolved |
+| `getRootFolderToken failed` | Missing Drive scope | `lark-cli auth login --scope drive:drive:readonly` |

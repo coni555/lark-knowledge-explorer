@@ -15,19 +15,20 @@ import { buildGraph } from './graph.js';
 import { computeStructuralInsights, computeSemanticInsights, computeCollisionInsights } from './insights.js';
 import { printTerminalReport, publishToFeishu } from './output.js';
 import { initAIFromEnv, isAIConfigured } from './ai.js';
-import { listSpaces, listAllSpaceNodes } from './lark.js';
+import { listSpaces, listAllSpaceNodes, getRootFolderToken, listAllDriveFiles } from './lark.js';
 import type { ExploreResult } from './types.js';
 import chalk from 'chalk';
 
 // --- Phase runners ---
 
 async function runCollect(cache: CacheStore, opts: {
-  mode: 'full-scan' | 'keyword-search';
+  mode: 'full-scan' | 'keyword-search' | 'drive-scan';
   query?: string;
   spaceId?: string;
   maxPages?: number;
   owner?: string;
   folder?: string;
+  driveFolder?: string;
 }) {
   const collectResult = await collectDocuments(cache, {
     mode: opts.mode,
@@ -36,6 +37,7 @@ async function runCollect(cache: CacheStore, opts: {
     maxPages: opts.maxPages,
     owner: opts.owner,
     folder: opts.folder,
+    driveFolder: opts.driveFolder,
   });
 
   const { nodes } = collectResult;
@@ -172,12 +174,13 @@ async function runRender(cache: CacheStore) {
 // --- Full pipeline (default, backward compatible) ---
 
 async function exploreFull(cache: CacheStore, opts: {
-  mode: 'full-scan' | 'keyword-search';
+  mode: 'full-scan' | 'keyword-search' | 'drive-scan';
   query?: string;
   spaceId?: string;
   maxPages?: number;
   owner?: string;
   folder?: string;
+  driveFolder?: string;
 }) {
   // Init AI — if no key, gracefully degrade to collect-only + guidance
   initAIFromEnv();
@@ -346,6 +349,64 @@ ${docList}
     console.error(chalk.red(`\n❌ 错误: ${err.message}`));
     process.exit(1);
   });
+// --list-drive [folder_token]: show Drive folder tree
+} else if (args.includes('--list-drive')) {
+  const idx = args.indexOf('--list-drive');
+  const targetFolder = args[idx + 1] && !args[idx + 1].startsWith('-') ? args[idx + 1] : undefined;
+  (async () => {
+    let rootToken: string;
+    if (targetFolder) {
+      rootToken = targetFolder;
+      console.log(chalk.blue(`📂 显示云盘文件夹: ${targetFolder}\n`));
+    } else {
+      console.log(chalk.blue('📡 正在获取云盘根目录...\n'));
+      rootToken = getRootFolderToken();
+    }
+
+    const allFiles = listAllDriveFiles(rootToken);
+    if (allFiles.length === 0) {
+      console.log('该文件夹下没有内容。');
+      return;
+    }
+
+    // Build parent→children map for tree display
+    const childrenMap = new Map<string, typeof allFiles>();
+    const rootFiles = allFiles.filter(f => f.parent_token === rootToken);
+    for (const f of allFiles) {
+      if (f.parent_token !== rootToken) {
+        const siblings = childrenMap.get(f.parent_token) ?? [];
+        siblings.push(f);
+        childrenMap.set(f.parent_token, siblings);
+      }
+    }
+
+    const typeIcons: Record<string, string> = {
+      docx: '📄', doc: '📄', sheet: '📊', bitable: '📋',
+      slides: '📽️', mindnote: '🧠', file: '📎', folder: '📁',
+    };
+
+    function printTree(fileList: typeof allFiles, prefix: string) {
+      for (let i = 0; i < fileList.length; i++) {
+        const f = fileList[i];
+        const isLast = i === fileList.length - 1;
+        const connector = isLast ? '└── ' : '├── ';
+        const icon = typeIcons[f.type] ?? '📄';
+        console.log(`${prefix}${connector}${icon} ${f.name}  ${chalk.gray(f.token)}`);
+        const children = childrenMap.get(f.token);
+        if (children) {
+          printTree(children, prefix + (isLast ? '    ' : '│   '));
+        }
+      }
+    }
+
+    const docCount = allFiles.filter(f => f.type === 'docx' || f.type === 'doc').length;
+    console.log(`云盘文件树 (共 ${allFiles.length} 项, ${docCount} 篇可分析文档):\n`);
+    printTree(rootFiles, '');
+    console.log(chalk.gray('\n提示: 使用 --drive <folder_token> 可扫描指定文件夹'));
+  })().catch(err => {
+    console.error(chalk.red(`\n❌ 错误: ${err.message}`));
+    process.exit(1);
+  });
 } else {
   // Parse flags
   const collectOnly = args.includes('--collect-only');
@@ -357,8 +418,9 @@ ${docList}
   const maxPagesIdx = args.indexOf('--max-pages');
   const ownerIdx = args.indexOf('--owner');
   const folderIdx = args.indexOf('--folder');
+  const driveIdx = args.indexOf('--drive');
 
-  const flagValues = new Set([queryIdx + 1, spaceIdx + 1, maxPagesIdx + 1, ownerIdx + 1, folderIdx + 1]);
+  const flagValues = new Set([queryIdx + 1, spaceIdx + 1, maxPagesIdx + 1, ownerIdx + 1, folderIdx + 1, driveIdx + 1]);
   const bareArg = args.find((a, i) => !a.startsWith('-') && !flagValues.has(i));
 
   const query = queryIdx !== -1 ? args[queryIdx + 1] : bareArg;
@@ -366,7 +428,23 @@ ${docList}
   const maxPages = maxPagesIdx !== -1 ? parseInt(args[maxPagesIdx + 1], 10) : undefined;
   const owner = ownerIdx !== -1 ? args[ownerIdx + 1] : undefined;
   const folder = folderIdx !== -1 ? args[folderIdx + 1] : undefined;
-  const mode = query ? 'keyword-search' as const : 'full-scan' as const;
+
+  // --drive [folder_token]: scan Drive instead of Wiki
+  const isDrive = driveIdx !== -1;
+  const driveFolder = isDrive && args[driveIdx + 1] && !args[driveIdx + 1].startsWith('-')
+    ? args[driveIdx + 1] : undefined;
+
+  // Validate: --drive conflicts with --space and --query
+  if (isDrive && spaceId) {
+    console.error(chalk.red('❌ --drive 和 --space 不能同时使用。--drive 扫描云盘，--space 扫描知识空间。'));
+    process.exit(1);
+  }
+  if (isDrive && query) {
+    console.error(chalk.red('❌ --drive 和 --query 不能同时使用。云盘模式直接遍历文件夹。'));
+    process.exit(1);
+  }
+
+  const mode = isDrive ? 'drive-scan' as const : query ? 'keyword-search' as const : 'full-scan' as const;
 
   const cacheDir = join(process.cwd(), '.knowledge-cache');
   const cache = new CacheStore(cacheDir);
@@ -375,14 +453,14 @@ ${docList}
     console.log(chalk.bold.cyan('\n🔍 Knowledge Explorer — 飞书知识探索器\n'));
 
     if (collectOnly) {
-      await runCollect(cache, { mode, query, spaceId, maxPages, owner, folder });
+      await runCollect(cache, { mode, query, spaceId, maxPages, owner, folder, driveFolder });
     } else if (analyzeOnly) {
       await runAnalyze(cache);
     } else if (renderOnly) {
       await runRender(cache);
     } else {
       // Default: full pipeline
-      await exploreFull(cache, { mode, query, spaceId, maxPages, owner, folder });
+      await exploreFull(cache, { mode, query, spaceId, maxPages, owner, folder, driveFolder });
     }
   };
 

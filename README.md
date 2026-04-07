@@ -20,8 +20,7 @@ This tool uses AI to build relationships from scratch and find cross-topic insig
 
 ---
 
-<!-- TODO: replace with actual GIF recording -->
-<!-- <p align="center"><img src="docs/demo.gif" width="700" alt="Knowledge Explorer Demo"></p> -->
+<p align="center"><img src="docs/demo.gif" width="700" alt="Knowledge Explorer Demo"></p>
 
 ## Why?
 
@@ -50,6 +49,8 @@ After installing the Skill, just tell your AI agent what you want in natural lan
 | "Only look at other people's docs" | Excludes your docs, analyzes others' |
 | "Only analyze the XX space" | Scans within a specific wiki space |
 | "Only the YY folder under XX space" | Narrows down to a folder and its subfolders |
+| "Scan my Drive folder" | Scans Feishu Drive (cloud files) instead of wiki spaces |
+| "Analyze the XX folder in my Drive" | Scans a specific Drive folder and its subfolders |
 
 These filters **can be freely combined**, e.g. "Analyze my docs in the Product space about user growth".
 
@@ -59,6 +60,7 @@ These filters **can be freely combined**, e.g. "Analyze my docs in the Product s
 |---------|---------|
 | "What wiki spaces do I have?" | Lists all accessible spaces with IDs |
 | "Show the folder structure of XX space" | Displays the folder tree so you can pick a scope |
+| "Show my Drive folder structure" | Displays the Drive file tree so you can pick a folder |
 
 ### Supported Document Types
 
@@ -105,7 +107,7 @@ Send this to your AI agent and it will handle the entire setup:
 > 1. Check Node.js >= 20 is installed; if not, tell me to install it manually
 > 2. `npm install -g @larksuite/cli`
 > 3. `npm install -g lark-knowledge-explorer`
-> 4. Run `lark-cli auth login --scope search:docs_wiki:readonly,wiki:node:read,docx:document:readonly,docx:document` — this step requires me to authorize in the browser, wait for me to finish
+> 4. Run `lark-cli auth login --scope search:docs_wiki:readonly,wiki:node:read,docx:document:readonly,docx:document,drive:drive:readonly` — this step requires me to authorize in the browser, wait for me to finish
 > 5. Install the Skill files from the npm global package to your skills directory: source path `$(npm root -g)/lark-knowledge-explorer/` (need SKILL.md and references/)
 >
 > Once done, tell me what I can say to trigger a knowledge base analysis.
@@ -144,6 +146,8 @@ npx knowledge-explorer
 | `--max-pages <n>` | Max search pages (default: 10) |
 | `--list-spaces` | List all accessible wiki spaces |
 | `--list-tree <space_id>` | Show folder tree of a space (find node tokens for `--folder`) |
+| `--drive [folder_token]` | Scan Feishu Drive instead of wiki spaces (default: root folder) |
+| `--list-drive [folder_token]` | Show Drive folder tree (find tokens for `--drive`) |
 
 **Environment Variables** (auto-loaded from `.env`):
 
@@ -160,32 +164,32 @@ npx knowledge-explorer
 ## 📊 Sample Output
 
 ```
-🔍 Scan complete: 14 documents
+🔍 Scan complete: 18 documents
 
 📊 Knowledge Health
-  🏛 Hub docs (9): MBTI Personality & Study Abroad, Event Planning, etc.
-  🌉 Bridge docs (9): Knowledge Report, MBTI Personality, etc.
-  ⏰ Possibly stale (3): Holiday Study Guide, IP Growth Training, Community Plan
+  🏛 Hub docs (7): Q3 Product Roadmap, User Onboarding Guide, etc.
+  🌉 Bridge docs (5): Competitive Analysis Report, Cross-team Sync Notes, etc.
+  ⏰ Possibly stale (3): New Hire Orientation, Legacy API Docs, Brand Guidelines v1
 
-🔗 Found 6 topic clusters
-  ├ #StudyAbroadPaths (4 docs)
-  │   · Knowledge Exploration Report 2026-04-05
-  │   · INFP | MBTI Personality & Study Abroad Paths
+🔗 Found 5 topic clusters
+  ├ #ProductStrategy (5 docs)
+  │   · Q3 Product Roadmap
+  │   · Feature Prioritization Framework
   │   · ...
-  ├ #ReadingSkills (4 docs)
-  │   · Original Reading Club Handbook
-  │   · Reading Workshop Plan
+  ├ #UserResearch (4 docs)
+  │   · User Interview Insights Q2
+  │   · Persona Workshop Notes
   │   · ...
-  └ #AIReadingWorkshop (2 docs)
-      · Cognitive Radar Prompt Lab
-      · "Information Overload Terminator"
+  └ #EngineeringOps (3 docs)
+      · Incident Postmortem Template
+      · On-call Runbook
 
 💡 Collision Insights (Top 5)
-  1. "Knowledge Report" × "MBTI Event Plan"
-     → Embed the MBTI-study path knowledge graph into a 7-day campaign
-     Doc A provides structured personality-environment matching; Doc B has a proven outreach funnel...
-  2. "Cognitive Radar Prompt Lab" × "Holiday Study Guide"
-     → Launch a biweekly reading sprint with constructive reading prompt workflows...
+  1. "User Interview Insights" × "Q3 Product Roadmap"
+     → Feed the top-3 unmet user needs directly into roadmap prioritization
+     Doc A surfaces recurring pain points from 12 interviews; Doc B lacks user-evidence backing...
+  2. "Incident Postmortem Template" × "New Hire Orientation"
+     → Add a "first-week oncall shadow" module using real postmortem walkthroughs...
 
 📄 Full report generated → https://feishu.cn/docx/xxx
 ```

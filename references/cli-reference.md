@@ -18,7 +18,11 @@ npx knowledge-explorer [options]
 | `--owner me\|others\|<name>` | Filter by document owner | All |
 | `--space <space_id>` | Limit to specific wiki space | All spaces |
 | `--max-pages <n>` | Max search result pages | 10 |
+| `--folder <node_token>` | Limit to a folder subtree (requires `--space`) | — |
+| `--drive [folder_token]` | Scan Feishu Drive folders (default: root) | — |
 | `--list-spaces` | List all accessible wiki spaces and exit | — |
+| `--list-tree <space_id>` | Show folder tree for a wiki space | — |
+| `--list-drive [folder_token]` | Show Drive folder tree | — |
 
 ## Environment Variables
 
@@ -38,3 +42,4 @@ Set in `.env` (auto-loaded) or shell:
 | `wiki:node:read` | Read wiki nodes |
 | `docx:document:readonly` | Read document content |
 | `docx:document` | Create report document |
+| `drive:drive:readonly` | List and read Drive files |

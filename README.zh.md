@@ -20,8 +20,7 @@
 
 ---
 
-<!-- TODO: 替换为实际 GIF 录屏 -->
-<!-- <p align="center"><img src="docs/demo.gif" width="700" alt="Knowledge Explorer 演示"></p> -->
+<p align="center"><img src="docs/demo.gif" width="700" alt="Knowledge Explorer 演示"></p>
 
 ## 为什么需要？
 
@@ -50,6 +49,8 @@ Knowledge Explorer 用 AI **从零建立连接** — 不只是发现已有链接
 | "只看别人写的文档" | 排除你的文档，只分析他人的 |
 | "只分析 XX 空间" | 限定在某个知识空间内扫描 |
 | "只看 XX 空间下的 YY 文件夹" | 精确到某个文件夹及其子文件夹 |
+| "扫描我的云盘" | 扫描飞书云盘文件（而非知识空间） |
+| "分析云盘里的 XX 文件夹" | 扫描云盘指定文件夹及其子文件夹 |
 
 以上条件**可以自由组合**，比如："帮我分析产品空间里我自己写的文档"。
 
@@ -59,6 +60,7 @@ Knowledge Explorer 用 AI **从零建立连接** — 不只是发现已有链接
 |------|-----------|
 | "我有哪些知识空间？" | 列出所有可访问的空间名称和 ID |
 | "看看 XX 空间的文件夹结构" | 树形展示空间内的文件夹层级，方便你指定范围 |
+| "看看我的云盘文件结构" | 树形展示云盘文件夹层级，方便你指定范围 |
 
 ### 支持的文档类型
 
@@ -105,7 +107,7 @@ Knowledge Explorer 用 AI **从零建立连接** — 不只是发现已有链接
 > 1. 检查 Node.js >= 20，没有就提示我手动安装
 > 2. `npm install -g @larksuite/cli`
 > 3. `npm install -g lark-knowledge-explorer`
-> 4. 运行 `lark-cli auth login --scope search:docs_wiki:readonly,wiki:node:read,docx:document:readonly,docx:document` —— 这一步需要我在浏览器里授权，等我完成再继续
+> 4. 运行 `lark-cli auth login --scope search:docs_wiki:readonly,wiki:node:read,docx:document:readonly,docx:document,drive:drive:readonly` —— 这一步需要我在浏览器里授权，等我完成再继续
 > 5. 把 npm 全局包里的 Skill 文件安装到你的 skills 目录：源路径 `$(npm root -g)/lark-knowledge-explorer/`（需要 SKILL.md 和 references/ 两个）
 >
 > 装完后告诉我可以说什么来触发知识库分析。
@@ -144,6 +146,8 @@ npx knowledge-explorer
 | `--max-pages <n>` | 搜索最大页数（默认 10） |
 | `--list-spaces` | 列出所有可访问的知识空间 |
 | `--list-tree <space_id>` | 树形展示空间的文件夹结构 |
+| `--drive [folder_token]` | 扫描飞书云盘文件夹（默认根目录） |
+| `--list-drive [folder_token]` | 树形展示云盘文件夹结构 |
 
 **环境变量**（从 `.env` 自动加载）：
 
@@ -160,32 +164,32 @@ npx knowledge-explorer
 ## 📊 输出示例
 
 ```
-🔍 扫描完成：14 篇文档
+🔍 扫描完成：18 篇文档
 
 📊 知识健康度
-  🏛 枢纽文档 (9)：MBTI人格与留学路径选择、活动策划方案 等
-  🌉 桥梁文档 (9)：知识探索报告、MBTI人格与留学路径选择 等
-  ⏰ 可能过期 (3)：假期充电站、IP增长项目培训、鹅圈子学院方案
+  🏛 枢纽文档 (7)：Q3 产品路线图、新人入职指南 等
+  🌉 桥梁文档 (5)：竞品分析报告、跨团队同步会议纪要 等
+  ⏰ 可能过期 (3)：新人培训手册、旧版 API 文档、品牌规范 v1
 
-🔗 发现 6 个主题聚类
-  ├ #留学路径适配 (4篇)
-  │   · 知识探索报告 2026-04-05
-  │   · INFP|不同MBTI人格与留学路径选择
+🔗 发现 5 个主题聚类
+  ├ #产品策略 (5篇)
+  │   · Q3 产品路线图
+  │   · 需求优先级评估框架
   │   · ...
-  ├ #阅读力提升 (4篇)
-  │   · 「原著阅读俱乐部」学习手册
-  │   · 浪前·阅读力工坊-策划案
+  ├ #用户研究 (4篇)
+  │   · Q2 用户访谈洞察
+  │   · 用户画像工坊笔记
   │   · ...
-  └ #AI阅读工坊 (2篇)
-      · 认知雷达 Prompt 实验室
-      · 《信息过载终结者》
+  └ #工程运维 (3篇)
+      · 故障复盘模板
+      · 值班手册
 
 💡 碰撞洞察 (Top 5)
-  1.《知识探索报告》×《MBTI情报局活动策划方案》
-     → 将 MBTI-留学路径知识图谱嵌入7天线上活动，生成个性化匹配建议
-     文档A提供结构化的人格-环境匹配知识资产，文档B具备成熟的私域触达路径...
-  2.《认知雷达 Prompt 实验室》×《假期充电站》
-     → 联合发起双周共读行动，用构建式阅读设计 Prompt 任务流...
+  1.《Q2 用户访谈洞察》×《Q3 产品路线图》
+     → 将 12 次访谈中反复出现的 Top 3 痛点直接注入路线图优先级排序
+     文档A沉淀了高频用户痛点，文档B的需求排序缺少用户证据支撑...
+  2.《故障复盘模板》×《新人培训手册》
+     → 在入职第一周加入"oncall 跟岗"模块，用真实复盘案例做 walkthrough...
 
 📄 完整报告已生成 → https://feishu.cn/docx/xxx
 ```

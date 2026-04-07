@@ -217,6 +217,101 @@ export async function listAllSpaceNodes(spaceId: string, startNodeToken?: string
   return allNodes;
 }
 
+// --- Drive (Cloud Space) Scanning ---
+
+export interface DriveFileInfo {
+  token: string;
+  name: string;
+  type: string;          // folder, docx, doc, bitable, sheet, slides, mindnote, file, shortcut
+  owner_id: string;
+  parent_token: string;
+  created_time: string;  // unix timestamp string
+  modified_time: string; // unix timestamp string
+  url: string;
+  // Shortcut resolution: actual target info (populated for type === 'shortcut')
+  target_token?: string; // real doc token
+  target_type?: string;  // real doc type (docx, doc, sheet, etc.)
+}
+
+interface RawDriveRootResponse {
+  code: number;
+  data: {
+    token: string;
+    id: string;
+    user_id: string;
+  };
+}
+
+interface RawDriveFilesResponse {
+  code: number;
+  data: {
+    files: Array<{
+      token: string;
+      name: string;
+      type: string;
+      parent_token: string;
+      owner_id?: string;
+      created_time?: string;
+      modified_time?: string;
+      url?: string;
+      shortcut_info?: {
+        target_token: string;
+        target_type: string;
+      };
+    }>;
+    has_more?: boolean;
+    page_token?: string;
+  };
+}
+
+export function getRootFolderToken(): string {
+  const raw = larkAPI<RawDriveRootResponse>('GET', '/open-apis/drive/explorer/v2/root_folder/meta');
+  if (raw.code !== 0) throw new Error(`getRootFolderToken failed: code ${raw.code}`);
+  return raw.data.token;
+}
+
+export function listDriveFolder(folderToken: string): DriveFileInfo[] {
+  const raw = larkAPI<RawDriveFilesResponse>('GET', '/open-apis/drive/v1/files', {
+    folder_token: folderToken,
+  });
+  if (raw.code !== 0) throw new Error(`listDriveFolder failed: code ${raw.code}`);
+  return (raw.data.files ?? []).map(f => {
+    const isShortcut = f.type === 'shortcut' && f.shortcut_info;
+    return {
+      // For shortcuts: use target_token as the real doc token
+      token: isShortcut ? f.shortcut_info!.target_token : f.token,
+      name: f.name,
+      // For shortcuts: expose the real target type so docx/doc shortcuts get collected
+      type: isShortcut ? f.shortcut_info!.target_type : f.type,
+      owner_id: f.owner_id ?? '',
+      parent_token: f.parent_token,
+      created_time: f.created_time ?? '',
+      modified_time: f.modified_time ?? '',
+      url: f.url ?? '',
+      target_token: isShortcut ? f.shortcut_info!.target_token : undefined,
+      target_type: isShortcut ? f.shortcut_info!.target_type : undefined,
+    };
+  });
+}
+
+// Recursively list ALL files under a Drive folder
+export function listAllDriveFiles(folderToken: string): DriveFileInfo[] {
+  const allFiles: DriveFileInfo[] = [];
+
+  function traverse(token: string) {
+    const files = listDriveFolder(token);
+    for (const f of files) {
+      allFiles.push(f);
+      if (f.type === 'folder') {
+        traverse(f.token);
+      }
+    }
+  }
+
+  traverse(folderToken);
+  return allFiles;
+}
+
 // --- Wiki Node Resolution ---
 
 interface WikiNodeResult {

@@ -1,16 +1,17 @@
 // src/collect.ts
-import { searchDocs, listSpaces, listAllSpaceNodes, fetchDocContent, resolveWikiNode, getCurrentUser } from './lark.js';
+import { searchDocs, listSpaces, listAllSpaceNodes, fetchDocContent, resolveWikiNode, getCurrentUser, getRootFolderToken, listAllDriveFiles } from './lark.js';
 import { CacheStore } from './cache.js';
 import type { KnowledgeNode } from './types.js';
 import chalk from 'chalk';
 
 export interface CollectOptions {
-  mode: 'full-scan' | 'keyword-search';
+  mode: 'full-scan' | 'keyword-search' | 'drive-scan';
   spaceId?: string;       // full-scan: limit to one space (default: all)
   query?: string;         // keyword-search: search term
   maxPages?: number;      // keyword-search: max pages
   owner?: 'me' | 'others' | string;  // filter by owner: 'me', 'others', or specific name
   folder?: string;        // full-scan: limit to a subtree by node_token (folder)
+  driveFolder?: string;   // drive-scan: folder token (default: root)
 }
 
 export interface CollectResult {
@@ -301,9 +302,93 @@ async function collectFromSearch(cache: CacheStore, query: string, maxPages?: nu
   return { nodes };
 }
 
+// --- Drive Scan Mode ---
+
+async function collectFromDrive(cache: CacheStore, folderToken?: string, ownerOpt?: string): Promise<CollectResult> {
+  const cachedNodes = await cache.readNodes();
+  const cachedMap = new Map(cachedNodes.map(n => [n.id, n]));
+  const allNodes: KnowledgeNode[] = [];
+  let fetchCount = 0;
+  const { filterFn } = resolveOwnerFilter(ownerOpt);
+
+  // Resolve folder
+  let rootToken: string;
+  if (folderToken) {
+    rootToken = folderToken;
+    console.log(chalk.blue(`📂 云盘文件夹模式: ${folderToken}`));
+  } else {
+    console.log(chalk.blue('📡 正在获取云盘根目录...'));
+    rootToken = getRootFolderToken();
+    console.log(chalk.blue(`   根目录: ${rootToken}`));
+  }
+
+  // Recursively list all files
+  console.log(chalk.blue('🔍 正在递归扫描云盘文件...'));
+  const allFiles = listAllDriveFiles(rootToken);
+  const docFiles = allFiles.filter(f => f.type === 'docx' || f.type === 'doc');
+  const skippedTypes = allFiles.filter(f => f.type !== 'folder' && f.type !== 'docx' && f.type !== 'doc');
+
+  console.log(chalk.blue(`   共 ${allFiles.length} 个文件/文件夹`));
+  console.log(chalk.blue(`   📄 ${docFiles.length} 篇文档可分析`));
+  if (skippedTypes.length > 0) {
+    // Count by type
+    const typeCounts = new Map<string, number>();
+    for (const f of skippedTypes) {
+      typeCounts.set(f.type, (typeCounts.get(f.type) ?? 0) + 1);
+    }
+    const parts = Array.from(typeCounts.entries()).map(([t, c]) => `${t}×${c}`);
+    console.log(chalk.gray(`   ⏭ 跳过: ${parts.join(', ')}`));
+  }
+
+  // Apply owner filter and fetch content
+  for (const file of docFiles) {
+    if (ownerOpt && !filterFn(undefined, file.owner_id)) continue;
+
+    const editTime = file.modified_time
+      ? new Date(parseInt(file.modified_time) * 1000).toISOString()
+      : new Date().toISOString();
+
+    // Check cache freshness
+    const existing = cachedMap.get(file.token);
+    if (existing?.fetched_at && new Date(existing.fetched_at) >= new Date(editTime)) {
+      allNodes.push(existing);
+      continue;
+    }
+
+    try {
+      const content = await fetchDocContent(file.token);
+      allNodes.push({
+        id: file.token,
+        type: 'drive',
+        title: content.title || file.name,
+        space: '',
+        url: file.url || `https://feishu.cn/docx/${file.token}`,
+        updated_at: editTime,
+        summary: '',
+        keywords: [],
+        word_count: content.markdown.length,
+        fetched_at: new Date().toISOString(),
+        content: content.markdown,
+      });
+      fetchCount++;
+      process.stdout.write(chalk.gray(`\r   已抓取 ${fetchCount} 篇文档...`));
+    } catch (err) {
+      console.warn(chalk.yellow(`\n   ⚠ 跳过 ${file.name}: ${(err as Error).message}`));
+    }
+  }
+
+  if (fetchCount > 0) console.log('');
+  console.log(chalk.green(`✓ 共收集 ${allNodes.length} 篇文档（新抓取 ${fetchCount} 篇）`));
+  await cache.writeNodes(allNodes);
+  return { nodes: allNodes };
+}
+
 // --- Entry Point ---
 
 export async function collectDocuments(cache: CacheStore, opts: CollectOptions): Promise<CollectResult> {
+  if (opts.mode === 'drive-scan') {
+    return collectFromDrive(cache, opts.driveFolder, opts.owner);
+  }
   if (opts.mode === 'keyword-search') {
     if (!opts.query) throw new Error('keyword-search mode requires a query');
     return collectFromSearch(cache, opts.query, opts.maxPages, opts.owner, opts.spaceId, opts.folder);
