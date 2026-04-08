@@ -108,7 +108,7 @@ Send this to your AI agent and it will handle the entire setup:
 > 2. `npm install -g @larksuite/cli`
 > 3. `npm install -g lark-knowledge-explorer`
 > 4. Run `lark-cli auth login --scope search:docs_wiki:readonly,wiki:node:read,docx:document:readonly,docx:document,drive:drive:readonly` — this step requires me to authorize in the browser, wait for me to finish
-> 5. Install the Skill files from the npm global package to your skills directory: source path `$(npm root -g)/lark-knowledge-explorer/` (need SKILL.md and references/)
+> 5. Install the Skill files from the npm global package to your skills directory: copy `$(npm root -g)/lark-knowledge-explorer/SKILL.md` and `$(npm root -g)/lark-knowledge-explorer/references/` into a folder named **`knowledge-explorer`** under your skills directory (e.g. `~/.claude/skills/knowledge-explorer/`)
 >
 > Once done, tell me what I can say to trigger a knowledge base analysis.
 

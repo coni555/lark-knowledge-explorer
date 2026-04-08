@@ -108,7 +108,7 @@ Knowledge Explorer 用 AI **从零建立连接** — 不只是发现已有链接
 > 2. `npm install -g @larksuite/cli`
 > 3. `npm install -g lark-knowledge-explorer`
 > 4. 运行 `lark-cli auth login --scope search:docs_wiki:readonly,wiki:node:read,docx:document:readonly,docx:document,drive:drive:readonly` —— 这一步需要我在浏览器里授权，等我完成再继续
-> 5. 把 npm 全局包里的 Skill 文件安装到你的 skills 目录：源路径 `$(npm root -g)/lark-knowledge-explorer/`（需要 SKILL.md 和 references/ 两个）
+> 5. 把 npm 全局包里的 Skill 文件安装到你的 skills 目录：将 `$(npm root -g)/lark-knowledge-explorer/SKILL.md` 和 `$(npm root -g)/lark-knowledge-explorer/references/` 复制到 skills 目录下名为 **`knowledge-explorer`** 的文件夹中（如 `~/.claude/skills/knowledge-explorer/`）
 >
 > 装完后告诉我可以说什么来触发知识库分析。
 
