@@ -2,7 +2,7 @@
 
 [English](README.md) | [中文](README.zh.md)
 
-# Knowledge Explorer
+# lark-Knowledge Explorer skill
 
 ### Feishu Knowledge Base Analyzer
 
